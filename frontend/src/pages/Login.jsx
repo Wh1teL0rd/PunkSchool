@@ -38,13 +38,22 @@ function Login() {
     setLoading(true);
 
     try {
-      await authAPI.login(formData.email, formData.password);
+      const response = await authAPI.login(formData.email, formData.password);
+      console.log('Login: Login response:', response);
+      console.log('Login: Token in localStorage:', localStorage.getItem('access_token')?.substring(0, 20) + '...');
+      console.log('Login: isAuthenticated:', authAPI.isAuthenticated());
       setMessage('Успішно ввійшли! Перенаправляємо...');
-      // Сповіщаємо про зміну автентифікації
-      window.dispatchEvent(new Event('auth-changed'));
-      // Затримка для показу повідомлення
+      // Затримка для показу повідомлення та збереження токену
       setTimeout(() => {
+        // Перевіряємо, що токен все ще там
+        const token = localStorage.getItem('access_token');
+        console.log('Login: Before navigation, token exists:', !!token);
         navigate('/', { replace: true });
+        // Сповіщаємо про зміну автентифікації після навігації
+        setTimeout(() => {
+          console.log('Login: Dispatching auth-changed event, token:', localStorage.getItem('access_token')?.substring(0, 20) + '...');
+          window.dispatchEvent(new Event('auth-changed'));
+        }, 300);
       }, 1500);
     } catch (err) {
       if (err.response?.data?.detail) {

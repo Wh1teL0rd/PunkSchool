@@ -58,9 +58,11 @@ function Register() {
       // After successful registration, login automatically
       try {
         await authAPI.login(formData.email, formData.password);
-        // Сповіщаємо про зміну автентифікації
-        window.dispatchEvent(new Event('auth-changed'));
         navigate('/');
+        // Сповіщаємо про зміну автентифікації після навігації
+        setTimeout(() => {
+          window.dispatchEvent(new Event('auth-changed'));
+        }, 100);
       } catch (loginError) {
         // If auto-login fails, redirect to login page
         navigate('/login', { 

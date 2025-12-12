@@ -18,6 +18,9 @@ api.interceptors.request.use(
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Auth API: Adding token to request:', config.url, 'Token:', token.substring(0, 20) + '...');
+    } else {
+      console.log('Auth API: No token found for request:', config.url);
     }
     return config;
   },
@@ -57,6 +60,9 @@ export const authAPI = {
     
     if (response.data.access_token) {
       localStorage.setItem('access_token', response.data.access_token);
+      console.log('Auth API: Token saved to localStorage:', response.data.access_token.substring(0, 20) + '...');
+    } else {
+      console.error('Auth API: No access_token in response:', response.data);
     }
     
     return response.data;

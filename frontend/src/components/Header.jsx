@@ -11,29 +11,74 @@ function Header() {
   const [loading, setLoading] = useState(true);
 
   const fetchUser = async () => {
-    setLoading(true);
-    if (authAPI.isAuthenticated()) {
+    const isAuth = authAPI.isAuthenticated();
+    const token = localStorage.getItem('access_token');
+    console.log('Header: Checking auth, isAuthenticated:', isAuth, 'Token exists:', !!token);
+    
+    if (isAuth && token) {
+      setLoading(true);
       try {
+        console.log('Header: Fetching user data with token:', token.substring(0, 20) + '...');
         const userData = await authAPI.getCurrentUser();
+        console.log('Header: User data fetched successfully:', userData);
         setUser(userData);
       } catch (error) {
-        authAPI.logout();
+        console.error('Header: Error fetching user:', error);
+        console.error('Header: Error response:', error.response?.data);
+        console.error('Header: Error status:', error.response?.status);
+        // Перевіряємо, чи токен все ще існує
+        const tokenAfterError = localStorage.getItem('access_token');
+        console.log('Header: Token after error:', tokenAfterError?.substring(0, 20) + '...');
+        console.log('Header: Request headers:', error.config?.headers);
+        
+        // Видаляємо токен тільки якщо це точно 401 помилка (невалідний токен)
+        // Але не видаляємо одразу - можливо це тимчасова помилка
+        if (error.response?.status === 401) {
+          // Даємо ще один шанс - можливо проблема в мережі або сервері
+          console.log('Header: 401 error, but keeping token for now');
+          // Не видаляємо токен одразу - можливо проблема на бекенді
+          // authAPI.logout();
+        }
         setUser(null);
+      } finally {
+        setLoading(false);
       }
     } else {
       setUser(null);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchUser();
   }, [location.pathname]);
 
+  // Додаткова перевірка при монтуванні
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  // Слухаємо зміни в localStorage (для синхронізації між вкладками)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'access_token') {
+        fetchUser();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // Слухаємо події оновлення автентифікації
   useEffect(() => {
     const handleAuthChange = () => {
-      fetchUser();
+      // Невелика затримка, щоб переконатися, що токен збережений
+      setTimeout(() => {
+        fetchUser();
+      }, 50);
     };
 
     window.addEventListener('auth-changed', handleAuthChange);

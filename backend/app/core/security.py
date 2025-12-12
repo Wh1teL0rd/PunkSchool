@@ -54,6 +54,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    # PyJWT може повертати bytes, перетворюємо в string
+    if isinstance(encoded_jwt, bytes):
+        encoded_jwt = encoded_jwt.decode('utf-8')
+    print(f"create_access_token: Created token for user_id {to_encode.get('sub')}, token: {encoded_jwt[:30]}...")
     return encoded_jwt
 
 
@@ -68,9 +72,25 @@ def decode_token(token: str) -> Optional[dict]:
         Decoded token data or None if invalid
     """
     try:
+        print(f"decode_token: Attempting to decode token with SECRET_KEY: {settings.SECRET_KEY[:10]}...")
+        print(f"decode_token: Algorithm: {settings.ALGORITHM}")
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        print(f"decode_token: Successfully decoded, payload: {payload}")
         return payload
-    except InvalidTokenError:
+    except jwt.ExpiredSignatureError as e:
+        print(f"Token decode error: Token expired - {e}")
+        return None
+    except jwt.DecodeError as e:
+        print(f"Token decode error: Decode error - {e}")
+        return None
+    except jwt.InvalidSignatureError as e:
+        print(f"Token decode error: Invalid signature - {e}")
+        return None
+    except InvalidTokenError as e:
+        print(f"Token decode error: Invalid token - {e}")
+        return None
+    except Exception as e:
+        print(f"Token decode error: Unexpected error {type(e).__name__}: {e}")
         return None
 
 
@@ -85,6 +105,7 @@ async def get_current_user(
         HTTPException: If token is invalid or user not found
     """
     from app.models.user import User
+    from fastapi import Request
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,18 +113,42 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    if not token:
+        print("get_current_user: No token provided")
+        raise credentials_exception
+    
+    # Видаляємо "Bearer " префікс якщо він є
+    if token.startswith("Bearer "):
+        token = token[7:]
+    
+    print(f"get_current_user: Received token (first 30 chars): {token[:30]}...")
+    print(f"get_current_user: Token length: {len(token)}")
+    
     payload = decode_token(token)
     if payload is None:
+        print("get_current_user: Token decode failed")
         raise credentials_exception
     
-    user_id: int = payload.get("sub")
-    if user_id is None:
+    print(f"get_current_user: Token decoded successfully, payload: {payload}")
+    user_id_str = payload.get("sub")
+    if user_id_str is None:
+        print("get_current_user: No 'sub' in payload")
         raise credentials_exception
     
+    # Convert string back to int
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        print(f"get_current_user: Invalid user_id format: {user_id_str}")
+        raise credentials_exception
+    
+    print(f"get_current_user: Looking for user with id: {user_id}")
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
+        print(f"get_current_user: User with id {user_id} not found")
         raise credentials_exception
     
+    print(f"get_current_user: User found: {user.email}, role: {user.role}")
     return user
 
 
