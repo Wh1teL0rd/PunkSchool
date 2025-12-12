@@ -45,7 +45,7 @@ function Footer() {
       </div>
 
       <div className="footer-bottom">
-        <p>&copy; 2024 PunkSchool. Всі права захищені.</p>
+        <p>&copy; 2025 PunkSchool by Oleh Zeilyk. Всі права захищені.</p>
       </div>
     </footer>
   );
