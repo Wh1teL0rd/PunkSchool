@@ -34,3 +34,4 @@ class LessonType(str, Enum):
     TEXT = "text"
     QUIZ = "quiz"
 
+

@@ -116,6 +116,9 @@ function Header() {
           🎸 PunkSchool
         </Link>
         <nav className="nav">
+          <Link to="/courses" className="nav-link">
+            Курси
+          </Link>
           {user ? (
             <div className="user-menu">
               <button
@@ -137,6 +140,25 @@ function Header() {
                        'Адміністратор'}
                     </span>
                   </div>
+                  <div className="dropdown-divider"></div>
+                  {user.role === 'student' && (
+                    <Link
+                      to="/dashboard/student"
+                      className="dropdown-item"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      Мій кабінет
+                    </Link>
+                  )}
+                  {user.role === 'teacher' && (
+                    <Link
+                      to="/dashboard/teacher"
+                      className="dropdown-item"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      Кабінет викладача
+                    </Link>
+                  )}
                   <div className="dropdown-divider"></div>
                   <button
                     className="dropdown-item logout-item"

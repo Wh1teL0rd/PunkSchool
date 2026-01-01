@@ -133,3 +133,4 @@ class CourseCatalogService:
             "total_duration_minutes": total_duration
         }
 
+

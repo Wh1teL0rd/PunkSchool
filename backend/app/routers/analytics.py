@@ -44,3 +44,4 @@ async def get_platform_stats(
     service = AnalyticsService(db)
     return service.get_platform_stats()
 
+

@@ -1,0 +1,355 @@
+import { useState, useEffect } from 'react';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import coursesAPI from '../api/courses';
+import './Courses.css';
+
+const CATEGORIES = {
+  guitar: 'Гітара',
+  drums: 'Барабани',
+  vocals: 'Вокал',
+  keyboards: 'Клавішні',
+  theory: 'Теорія музики',
+};
+
+const LEVELS = {
+  beginner: 'Початковий',
+  intermediate: 'Середній',
+  advanced: 'Просунутий',
+  master: 'Майстер',
+};
+
+function Courses() {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Filters
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState('');
+  const [teacherSearch, setTeacherSearch] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  
+  // Course preview
+  const [previewCourse, setPreviewCourse] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  
+  // Filters modal
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [selectedCategory, selectedLevel, sortBy]);
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const filters = {
+        category: selectedCategory || undefined,
+        level: selectedLevel || undefined,
+        sort_by: sortBy,
+      };
+      
+      let coursesData = await coursesAPI.getCourses(filters);
+      
+      // Filter by teacher name if search is provided
+      if (teacherSearch.trim()) {
+        const searchLower = teacherSearch.toLowerCase();
+        coursesData = coursesData.filter(course => 
+          course.teacher?.full_name?.toLowerCase().includes(searchLower) ||
+          course.teacher?.email?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      setCourses(coursesData);
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+      setError('Не вдалося завантажити курси. Спробуйте пізніше.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreviewCourse = async (courseId) => {
+    try {
+      const courseDetails = await coursesAPI.getCourseDetails(courseId);
+      setPreviewCourse(courseDetails);
+      setShowPreview(true);
+    } catch (err) {
+      console.error('Error fetching course details:', err);
+      alert('Не вдалося завантажити деталі курсу');
+    }
+  };
+
+  const clearFilters = () => {
+    setSelectedCategory('');
+    setSelectedLevel('');
+    setTeacherSearch('');
+    setSortBy('newest');
+  };
+
+  const hasActiveFilters = selectedCategory || selectedLevel || teacherSearch.trim();
+
+  return (
+    <div className="courses-page">
+      <Header />
+      <div className="courses-header">
+        <h1>Каталог курсів</h1>
+        <p>Оберіть курс, який вас цікавить</p>
+      </div>
+
+      <div className="courses-container">
+        {/* Courses List */}
+        <main className="courses-main">
+          <div className="courses-actions">
+            <button
+              onClick={() => setShowFiltersModal(true)}
+              className="filters-button"
+            >
+              🔍 Фільтри
+              {hasActiveFilters && <span className="filter-badge"></span>}
+            </button>
+          </div>
+          {loading ? (
+            <div className="loading">Завантаження курсів...</div>
+          ) : error ? (
+            <div className="error">{error}</div>
+          ) : courses.length === 0 ? (
+            <div className="no-courses">
+              <p>Курси не знайдено</p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="clear-filters-button">
+                  Очистити фільтри
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="courses-count">
+                Знайдено курсів: {courses.length}
+              </div>
+              <div className="courses-grid">
+                {courses.map((course) => (
+                  <div key={course.id} className="course-card">
+                    <div className="course-header">
+                      <h3>{course.title}</h3>
+                      <span className="course-category">
+                        {CATEGORIES[course.category] || course.category}
+                      </span>
+                    </div>
+                    
+                    {course.teacher && (
+                      <div className="course-teacher">
+                        <strong>Викладач:</strong> {course.teacher.full_name || course.teacher.email}
+                      </div>
+                    )}
+                    
+                    <div className="course-meta">
+                      <span className="course-level">
+                        {LEVELS[course.level] || course.level}
+                      </span>
+                      <span className="course-rating">
+                        ⭐ {course.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    
+                    <div className="course-price">
+                      {course.price === 0 ? (
+                        <span className="price-free">Безкоштовно</span>
+                      ) : (
+                        <span className="price-amount">{course.price} ₴</span>
+                      )}
+                    </div>
+                    
+                    <div className="course-actions">
+                      <button
+                        onClick={() => handlePreviewCourse(course.id)}
+                        className="btn-preview"
+                      >
+                        Переглянути програму
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {/* Course Preview Modal */}
+      {showPreview && previewCourse && (
+        <div className="preview-modal-overlay" onClick={() => setShowPreview(false)}>
+          <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="preview-close"
+              onClick={() => setShowPreview(false)}
+            >
+              ×
+            </button>
+            
+            <div className="preview-header">
+              <h2>{previewCourse.title}</h2>
+              <div className="preview-meta">
+                <span>{CATEGORIES[previewCourse.category]}</span>
+                <span>{LEVELS[previewCourse.level]}</span>
+                <span>⭐ {previewCourse.rating.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            {previewCourse.description && (
+              <div className="preview-description">
+                <h3>Опис</h3>
+                <p>{previewCourse.description}</p>
+              </div>
+            )}
+            
+            {previewCourse.teacher && (
+              <div className="preview-teacher">
+                <h3>Викладач</h3>
+                <p>{previewCourse.teacher.full_name || previewCourse.teacher.email}</p>
+              </div>
+            )}
+            
+            <div className="preview-stats">
+              <div className="stat-item">
+                <strong>Уроків:</strong> {previewCourse.total_lessons || 0}
+              </div>
+              <div className="stat-item">
+                <strong>Тривалість:</strong> {previewCourse.total_duration || 0} хв
+              </div>
+              <div className="stat-item">
+                <strong>Ціна:</strong> {previewCourse.price === 0 ? 'Безкоштовно' : `${previewCourse.price} ₴`}
+              </div>
+            </div>
+            
+            {previewCourse.modules && previewCourse.modules.length > 0 && (
+              <div className="preview-program">
+                <h3>Програма курсу</h3>
+                <div className="modules-list">
+                  {previewCourse.modules.map((module, moduleIndex) => (
+                    <div key={module.id} className="module-item">
+                      <div className="module-header">
+                        <span className="module-number">{moduleIndex + 1}</span>
+                        <h4>{module.title}</h4>
+                      </div>
+                      {module.lessons && module.lessons.length > 0 && (
+                        <ul className="lessons-list">
+                          {module.lessons.map((lesson, lessonIndex) => (
+                            <li key={lesson.id} className="lesson-item">
+                              <span className="lesson-number">
+                                {moduleIndex + 1}.{lessonIndex + 1}
+                              </span>
+                              <span className="lesson-title">{lesson.title}</span>
+                              {lesson.duration_minutes > 0 && (
+                                <span className="lesson-duration">
+                                  {lesson.duration_minutes} хв
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Filters Modal */}
+      {showFiltersModal && (
+        <div className="filters-modal-overlay" onClick={() => setShowFiltersModal(false)}>
+          <div className="filters-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="filters-modal-header">
+              <h3>Фільтри</h3>
+              <button
+                className="filters-modal-close"
+                onClick={() => setShowFiltersModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="filters-modal-content">
+              <div className="filter-group">
+                <label>Категорія</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">Всі категорії</option>
+                  {Object.entries(CATEGORIES).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Рівень складності</label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">Всі рівні</option>
+                  {Object.entries(LEVELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Пошук за викладачем</label>
+                <input
+                  type="text"
+                  value={teacherSearch}
+                  onChange={(e) => setTeacherSearch(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && fetchCourses()}
+                  placeholder="Ім'я або email викладача"
+                  className="filter-input"
+                />
+                <button
+                  onClick={fetchCourses}
+                  className="search-button"
+                >
+                  Пошук
+                </button>
+              </div>
+
+              <div className="filter-group">
+                <label>Сортування</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="newest">Найновіші</option>
+                  <option value="title">За назвою</option>
+                  <option value="price_asc">Ціна: від низької</option>
+                  <option value="price_desc">Ціна: від високої</option>
+                  <option value="rating">За рейтингом</option>
+                </select>
+              </div>
+
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="clear-filters-button">
+                  Очистити фільтри
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Footer />
+    </div>
+  );
+}
+
+export default Courses;
+

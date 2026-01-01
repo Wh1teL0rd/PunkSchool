@@ -38,7 +38,7 @@ function Footer() {
           <h4 className="footer-title">Контакти</h4>
           <ul className="footer-contact">
             <li>📧 info@punkschool.com</li>
-            <li>📱 +380 (XX) XXX XX XX</li>
+            <li>📱 +380 (50) 111 22 33</li>
             <li>📍 Україна</li>
           </ul>
         </div>
