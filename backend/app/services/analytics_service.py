@@ -67,11 +67,19 @@ class AnalyticsService:
             Course.teacher_id == teacher_id
         ).group_by(Course.id).all()
         
+        # Count unique students enrolled in teacher's courses
+        total_students = self.db.query(func.count(func.distinct(Enrollment.student_id))).filter(
+            Enrollment.course_id.in_(
+                self.db.query(Course.id).filter(Course.teacher_id == teacher_id).subquery()
+            )
+        ).scalar() or 0
+        
         return {
             "total_revenue": total_revenue,
             "period_revenue": period_revenue,
             "period_days": days,
             "transaction_count": transaction_count,
+            "total_students": total_students,
             "revenue_by_course": [
                 {"title": r[0], "revenue": r[1], "sales": r[2]}
                 for r in revenue_by_course
@@ -157,6 +165,7 @@ class AnalyticsService:
         total_courses = len(enrollments)
         completed_courses = sum(1 for e in enrollments if e.is_completed)
         in_progress = total_courses - completed_courses
+        total_lessons_completed = sum(len(e.completed_lessons or []) for e in enrollments)
         
         # Average progress
         avg_progress = sum(e.progress_percent for e in enrollments) / total_courses if total_courses > 0 else 0
@@ -186,6 +195,7 @@ class AnalyticsService:
         return {
             "total_courses": total_courses,
             "completed_courses": completed_courses,
+            "total_lessons_completed": total_lessons_completed,
             "in_progress_courses": in_progress,
             "average_progress": round(avg_progress, 2),
             "total_quiz_attempts": total_quizzes,

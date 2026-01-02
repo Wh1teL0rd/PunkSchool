@@ -27,6 +27,10 @@ function CourseLearning() {
   const [quizResult, setQuizResult] = useState(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [resettingLessonId, setResettingLessonId] = useState(null);
+  const [courseRatingValue, setCourseRatingValue] = useState(null);
+  const [teacherRatingValue, setTeacherRatingValue] = useState(null);
+  const [submittingCourseRating, setSubmittingCourseRating] = useState(false);
+  const [submittingTeacherRating, setSubmittingTeacherRating] = useState(false);
 
   useEffect(() => {
     fetchCourseData();
@@ -217,6 +221,84 @@ function CourseLearning() {
     }
   };
 
+  useEffect(() => {
+    setCourseRatingValue(enrollment?.course_review?.rating || null);
+    setTeacherRatingValue(enrollment?.teacher_review?.rating || null);
+  }, [enrollment]);
+
+  const handleCourseRating = async (value) => {
+    if (!courseId || submittingCourseRating) return;
+    setSubmittingCourseRating(true);
+    try {
+      const response = await studentsAPI.rateCourse(courseId, { rating: value });
+      setCourseRatingValue(value);
+      setEnrollment((prev) =>
+        prev
+          ? {
+              ...prev,
+              course_review: {
+                rating: value,
+                updated_at: new Date().toISOString(),
+              },
+            }
+          : prev
+      );
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              rating: response.rating,
+              rating_count: response.rating_count,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error('Error rating course:', err);
+      alert(err.response?.data?.detail || 'Не вдалося зберегти оцінку курсу');
+    } finally {
+      setSubmittingCourseRating(false);
+    }
+  };
+
+  const handleTeacherRating = async (value) => {
+    if (!courseId || submittingTeacherRating) return;
+    setSubmittingTeacherRating(true);
+    try {
+      const response = await studentsAPI.rateTeacher(courseId, { rating: value });
+      setTeacherRatingValue(value);
+      setEnrollment((prev) =>
+        prev
+          ? {
+              ...prev,
+              teacher_review: {
+                rating: value,
+                updated_at: new Date().toISOString(),
+              },
+            }
+          : prev
+      );
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              teacher: prev.teacher
+                ? {
+                    ...prev.teacher,
+                    rating: response.rating,
+                    rating_count: response.rating_count,
+                  }
+                : prev.teacher,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error('Error rating teacher:', err);
+      alert(err.response?.data?.detail || 'Не вдалося зберегти оцінку викладача');
+    } finally {
+      setSubmittingTeacherRating(false);
+    }
+  };
+
   const totalLessons = course?.modules?.reduce((sum, module) => {
     return sum + (module.lessons?.length || 0);
   }, 0) || 0;
@@ -226,6 +308,30 @@ function CourseLearning() {
   const calculatedProgress = totalLessons > 0
     ? Math.round((completedLessonsCount / totalLessons) * 100)
     : Math.round(enrollment?.progress_percent || 0);
+
+  const averageCourseRating = course?.rating ? Number(course.rating).toFixed(1) : '0.0';
+  const courseRatingCount = course?.rating_count || 0;
+  const teacherAverageRating = course?.teacher?.rating
+    ? Number(course.teacher.rating).toFixed(1)
+    : '0.0';
+  const teacherRatingCount = course?.teacher?.rating_count || 0;
+
+  const renderStars = (currentValue, onSelect, disabled = false) => (
+    <div className="rating-stars">
+      {[1, 2, 3, 4, 5].map((value) => (
+        <button
+          key={value}
+          type="button"
+          className={`rating-star ${value <= (currentValue || 0) ? 'active' : ''}`}
+          onClick={() => !disabled && onSelect(value)}
+          disabled={disabled}
+          aria-label={`${value} з 5`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -273,6 +379,18 @@ function CourseLearning() {
         {course.description && (
           <div className="course-description">
             <p>{course.description}</p>
+          </div>
+        )}
+
+        {course.teacher && (
+          <div className="course-teacher-highlight">
+            <div>
+              <strong>Викладач:</strong> {course.teacher.full_name}
+            </div>
+            <div className="teacher-rating-info">
+              ⭐ {teacherAverageRating}{' '}
+              <span className="rating-count">({teacherRatingCount || 0})</span>
+            </div>
           </div>
         )}
 
@@ -355,10 +473,50 @@ function CourseLearning() {
           )}
 
           {enrollment?.is_completed && (
-            <div className="course-completed-message">
-              <h2>🎉 Вітаємо! Ви успішно завершили курс!</h2>
-              <p>Ви можете отримати сертифікат про завершення курсу.</p>
-            </div>
+            <>
+              <div className="course-completed-message">
+                <h2>🎉 Вітаємо! Ви успішно завершили курс!</h2>
+                <p>Тепер ви можете оцінити курс та викладача і отримати сертифікат.</p>
+              </div>
+              <div className="rating-section">
+                <div className="rating-card">
+                  <div className="rating-card-header">
+                    <h3>Оцініть курс</h3>
+                    <p>
+                      Середня оцінка: ⭐ {averageCourseRating}{' '}
+                      <span className="rating-count">({courseRatingCount})</span>
+                    </p>
+                  </div>
+                  {renderStars(courseRatingValue, handleCourseRating, submittingCourseRating)}
+                  <p className="rating-hint">
+                    {courseRatingValue
+                      ? `Ваша оцінка: ${courseRatingValue} / 5`
+                      : 'Натисніть на зірку, щоб поставити оцінку'}
+                  </p>
+                </div>
+                {course.teacher && (
+                  <div className="rating-card">
+                    <div className="rating-card-header">
+                      <h3>Оцініть викладача</h3>
+                      <p>
+                        Загальний рейтинг: ⭐ {teacherAverageRating}{' '}
+                        <span className="rating-count">({teacherRatingCount})</span>
+                      </p>
+                    </div>
+                    {renderStars(
+                      teacherRatingValue,
+                      handleTeacherRating,
+                      submittingTeacherRating
+                    )}
+                    <p className="rating-hint">
+                      {teacherRatingValue
+                        ? `Ваша оцінка викладача: ${teacherRatingValue} / 5`
+                        : 'Надайте свою оцінку викладачеві'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

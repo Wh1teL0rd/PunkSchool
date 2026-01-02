@@ -4,7 +4,7 @@ Course and related models for database.
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, 
-    ForeignKey, Text, Enum as SQLEnum, JSON
+    ForeignKey, Text, Enum as SQLEnum, JSON, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.mutable import MutableList
@@ -27,6 +27,7 @@ class Course(Base):
     category = Column(SQLEnum(CourseCategory), nullable=False)
     level = Column(SQLEnum(DifficultyLevel), default=DifficultyLevel.BEGINNER, nullable=False)
     rating = Column(Float, default=0.0)
+    rating_count = Column(Integer, default=0)
     is_published = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
@@ -214,3 +215,46 @@ class Transaction(Base):
     
     def __repr__(self):
         return f"<Transaction(id={self.id}, amount={self.amount})>"
+
+
+class CourseReview(Base):
+    """
+    CourseReview entity - student's rating for a course.
+    """
+    __tablename__ = "course_reviews"
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", name="uq_course_review_student_course"),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    course = relationship("Course", backref="reviews")
+    
+    def __repr__(self):
+        return f"<CourseReview(student_id={self.student_id}, course_id={self.course_id}, rating={self.rating})>"
+
+
+class TeacherReview(Base):
+    """
+    TeacherReview entity - student's rating for a teacher.
+    """
+    __tablename__ = "teacher_reviews"
+    __table_args__ = (
+        UniqueConstraint("student_id", "teacher_id", name="uq_teacher_review_student_teacher"),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    rating = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<TeacherReview(student_id={self.student_id}, teacher_id={self.teacher_id}, rating={self.rating})>"

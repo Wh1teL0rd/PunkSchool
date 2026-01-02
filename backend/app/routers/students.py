@@ -18,6 +18,10 @@ from app.schemas.course import (
     QuizSubmitDTO,
     QuizAttemptResponse,
     CertificateResponse,
+    CourseRatingRequest,
+    CourseRatingResponse,
+    TeacherRatingRequest,
+    TeacherRatingResponse,
 )
 from app.services.learning_service import LearningService
 from app.services.analytics_service import AnalyticsService
@@ -129,6 +133,32 @@ async def complete_course(
     service = LearningService(db)
     enrollment = service.complete_course(current_user.id, course_id)
     return enrollment
+
+
+# ============== Rating endpoints ==============
+
+@router.post("/courses/{course_id}/rating", response_model=CourseRatingResponse)
+async def rate_course(
+    course_id: int,
+    data: CourseRatingRequest,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Submit or update rating for a completed course."""
+    service = LearningService(db)
+    return service.rate_course(current_user.id, course_id, data.rating, data.comment)
+
+
+@router.post("/courses/{course_id}/teacher-rating", response_model=TeacherRatingResponse)
+async def rate_teacher(
+    course_id: int,
+    data: TeacherRatingRequest,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Submit or update rating for the teacher of a completed course."""
+    service = LearningService(db)
+    return service.rate_teacher(current_user.id, course_id, data.rating)
 
 
 # ============== Quiz endpoints ==============

@@ -3,7 +3,7 @@ Pydantic schemas (DTOs) for Course and related entities.
 """
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, conint
 
 from app.models.enums import CourseCategory, DifficultyLevel, LessonType
 from app.schemas.user import UserBriefResponse
@@ -30,6 +30,52 @@ class ModuleResponse(ModuleBase):
     
     class Config:
         from_attributes = True
+
+
+class CourseReviewResponse(BaseModel):
+    """Schema representing student's course review."""
+    rating: int
+    comment: Optional[str] = None
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class TeacherReviewResponse(BaseModel):
+    """Schema representing student's teacher review."""
+    rating: int
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class CourseRatingRequest(BaseModel):
+    """Request payload for submitting a course rating."""
+    rating: conint(ge=1, le=5)
+    comment: Optional[str] = None
+
+
+class CourseRatingResponse(BaseModel):
+    """Response payload for a course rating submission."""
+    course_id: int
+    rating: float
+    rating_count: int
+    student_rating: int
+
+
+class TeacherRatingRequest(BaseModel):
+    """Request payload for submitting a teacher rating."""
+    rating: conint(ge=1, le=5)
+
+
+class TeacherRatingResponse(BaseModel):
+    """Response payload for a teacher rating submission."""
+    teacher_id: int
+    rating: float
+    rating_count: int
+    student_rating: int
 
 
 # ============== Lesson Schemas ==============
@@ -188,6 +234,7 @@ class CourseResponse(CourseBase):
     id: int
     teacher_id: int
     rating: float
+    rating_count: int = 0
     is_published: bool
     created_at: datetime
     teacher: Optional[UserBriefResponse] = None
@@ -212,6 +259,7 @@ class CourseBriefResponse(BaseModel):
     title: str
     price: float
     rating: float
+    rating_count: int = 0
     category: CourseCategory
     level: DifficultyLevel
     teacher: Optional[UserBriefResponse] = None
@@ -243,6 +291,8 @@ class EnrollmentResponse(BaseModel):
     completed_lessons: List[int] = Field(default_factory=list)
     course: Optional[CourseBriefResponse] = None
     certificate: Optional["CertificateResponse"] = None
+    course_review: Optional["CourseReviewResponse"] = None
+    teacher_review: Optional["TeacherReviewResponse"] = None
     
     class Config:
         from_attributes = True

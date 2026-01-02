@@ -133,6 +133,29 @@ const studentsAPI = {
     const response = await api.post(`/students/quizzes/${quizId}/submit`, data);
     return response.data;
   },
+
+  /**
+   * Submit or update course rating
+   * @param {number} courseId
+   * @param {Object} payload { rating: number, comment?: string }
+   */
+  rateCourse: async (courseId, payload) => {
+    const response = await api.post(`/students/courses/${courseId}/rating`, payload);
+    return response.data;
+  },
+
+  /**
+   * Submit or update teacher rating for a course
+   * @param {number} courseId
+   * @param {Object} payload { rating: number }
+   */
+  rateTeacher: async (courseId, payload) => {
+    const response = await api.post(
+      `/students/courses/${courseId}/teacher-rating`,
+      payload
+    );
+    return response.data;
+  },
 };
 
 export default studentsAPI;

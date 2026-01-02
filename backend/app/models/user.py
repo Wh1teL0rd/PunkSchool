@@ -24,6 +24,8 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     bio = Column(Text, nullable=True)  # For teachers
     balance = Column(Float, default=1000.0, nullable=False)  # User balance for purchasing courses
+    rating = Column(Float, default=0.0)
+    rating_count = Column(Integer, default=0)
     
     # Relationships
     courses_teaching = relationship("Course", back_populates="teacher", lazy="dynamic")

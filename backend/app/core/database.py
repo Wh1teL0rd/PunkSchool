@@ -48,6 +48,12 @@ class Database:
         self._migrate_quiz_questions_points()
         # Add balance column to users table if it doesn't exist (migration)
         self._migrate_user_balance()
+        # Add rating fields to users table if they don't exist
+        self._migrate_user_rating_fields()
+        # Ensure courses table has rating_count column
+        self._migrate_course_rating_fields()
+        # Ensure review tables exist (SQLite lacks easy ALTER TABLE ADD FOREIGN KEY)
+        self._ensure_review_tables()
     
     def _migrate_lesson_type(self):
         """Add lesson_type column to lessons table if it doesn't exist."""
@@ -128,6 +134,99 @@ class Database:
                     print("✅ Migration: balance column already exists in users table")
         except Exception as e:
             print(f"⚠️ Migration warning (users.balance): {e}")
+
+    def _migrate_user_rating_fields(self):
+        """Add rating and rating_count columns to users table if missing."""
+        from sqlalchemy import text
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+                if not result.fetchone():
+                    print("⚠️ Migration: users table doesn't exist yet, skipping rating migration")
+                    return
+                
+                result = conn.execute(text("PRAGMA table_info(users)"))
+                columns = [row[1] for row in result]
+                
+                if 'rating' not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN rating REAL DEFAULT 0.0"))
+                    conn.execute(text("UPDATE users SET rating = 0.0 WHERE rating IS NULL"))
+                    conn.commit()
+                    print("✅ Migration: Added rating column to users table")
+                if 'rating_count' not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN rating_count INTEGER DEFAULT 0"))
+                    conn.execute(text("UPDATE users SET rating_count = 0 WHERE rating_count IS NULL"))
+                    conn.commit()
+                    print("✅ Migration: Added rating_count column to users table")
+        except Exception as e:
+            print(f"⚠️ Migration warning (users.rating): {e}")
+
+    def _migrate_course_rating_fields(self):
+        """Ensure courses table has rating_count column."""
+        from sqlalchemy import text
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='courses'"))
+                if not result.fetchone():
+                    print("⚠️ Migration: courses table doesn't exist yet, skipping rating migration")
+                    return
+                
+                result = conn.execute(text("PRAGMA table_info(courses)"))
+                columns = [row[1] for row in result]
+                
+                if 'rating_count' not in columns:
+                    conn.execute(text("ALTER TABLE courses ADD COLUMN rating_count INTEGER DEFAULT 0"))
+                    conn.execute(text("UPDATE courses SET rating_count = 0 WHERE rating_count IS NULL"))
+                    conn.commit()
+                    print("✅ Migration: Added rating_count column to courses table")
+        except Exception as e:
+            print(f"⚠️ Migration warning (courses.rating_count): {e}")
+
+    def _ensure_review_tables(self):
+        """Create course_reviews and teacher_reviews tables if missing."""
+        from sqlalchemy import text
+        try:
+            with self.engine.connect() as conn:
+                for table_name, ddl in [
+                    (
+                        "course_reviews",
+                        """
+                        CREATE TABLE IF NOT EXISTS course_reviews (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            student_id INTEGER NOT NULL,
+                            course_id INTEGER NOT NULL,
+                            rating INTEGER NOT NULL,
+                            comment TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                            UNIQUE(student_id, course_id),
+                            FOREIGN KEY(student_id) REFERENCES users(id),
+                            FOREIGN KEY(course_id) REFERENCES courses(id)
+                        )
+                        """,
+                    ),
+                    (
+                        "teacher_reviews",
+                        """
+                        CREATE TABLE IF NOT EXISTS teacher_reviews (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            student_id INTEGER NOT NULL,
+                            teacher_id INTEGER NOT NULL,
+                            rating INTEGER NOT NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                            UNIQUE(student_id, teacher_id),
+                            FOREIGN KEY(student_id) REFERENCES users(id),
+                            FOREIGN KEY(teacher_id) REFERENCES users(id)
+                        )
+                        """,
+                    ),
+                ]:
+                    conn.execute(text(ddl))
+                    conn.commit()
+                    print(f"✅ Migration: ensured {table_name} table exists")
+        except Exception as e:
+            print(f"⚠️ Migration warning (review tables): {e}")
 
 
 # Global database instance

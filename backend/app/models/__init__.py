@@ -12,7 +12,9 @@ from app.models.course import (
     QuizQuestion, 
     QuizAttempt, 
     Certificate, 
-    Transaction
+    Transaction,
+    CourseReview,
+    TeacherReview,
 )
 
 __all__ = [
@@ -30,4 +32,6 @@ __all__ = [
     "QuizAttempt",
     "Certificate",
     "Transaction",
+    "CourseReview",
+    "TeacherReview",
 ]

@@ -6,13 +6,15 @@ import uuid
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException, status
 import pdfkit
 
 from app.core.config import settings
 from app.models.course import (
     Course, Module, Lesson, Enrollment, 
-    Quiz, QuizQuestion, QuizAttempt, Certificate, Transaction
+    Quiz, QuizQuestion, QuizAttempt, Certificate, Transaction,
+    CourseReview, TeacherReview,
 )
 from app.models.user import User
 
@@ -34,6 +36,164 @@ class LearningService:
     
     def __init__(self, db: Session):
         self.db = db
+    
+    def _recalculate_course_rating(self, course_id: int) -> Optional[Course]:
+        """Recalculate and persist average rating for a course."""
+        course = self.db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            return None
+        
+        avg_rating, rating_count = self.db.query(
+            func.avg(CourseReview.rating),
+            func.count(CourseReview.id)
+        ).filter(CourseReview.course_id == course_id).first()
+        
+        course.rating = float(avg_rating) if rating_count else 0.0
+        course.rating_count = rating_count or 0
+        return course
+    
+    def _recalculate_teacher_rating(self, teacher_id: int) -> Optional[User]:
+        """Recalculate and persist average rating for a teacher."""
+        teacher = self.db.query(User).filter(User.id == teacher_id).first()
+        if not teacher:
+            return None
+        
+        avg_rating, rating_count = self.db.query(
+            func.avg(TeacherReview.rating),
+            func.count(TeacherReview.id)
+        ).filter(TeacherReview.teacher_id == teacher_id).first()
+        
+        teacher.rating = float(avg_rating) if rating_count else 0.0
+        teacher.rating_count = rating_count or 0
+        return teacher
+    
+    def rate_course(self, student_id: int, course_id: int, rating: int, comment: Optional[str] = None) -> dict:
+        """Allow a student to rate a course they completed."""
+        course = self.db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        enrollment = self.db.query(Enrollment).filter(
+            Enrollment.student_id == student_id,
+            Enrollment.course_id == course_id
+        ).first()
+        
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not enrolled in this course"
+            )
+        
+        if not enrollment.is_completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Complete the course before rating it"
+            )
+        
+        review = self.db.query(CourseReview).filter(
+            CourseReview.student_id == student_id,
+            CourseReview.course_id == course_id
+        ).first()
+        
+        now = datetime.utcnow()
+        if review:
+            review.rating = rating
+            if comment is not None:
+                review.comment = comment
+            review.updated_at = now
+        else:
+            review = CourseReview(
+                student_id=student_id,
+                course_id=course_id,
+                rating=rating,
+                comment=comment,
+                created_at=now,
+                updated_at=now,
+            )
+            self.db.add(review)
+        
+        self.db.commit()
+        updated_course = self._recalculate_course_rating(course_id)
+        self.db.commit()
+        
+        if updated_course:
+            self.db.refresh(updated_course)
+        
+        return {
+            "course_id": course_id,
+            "rating": updated_course.rating if updated_course else float(rating),
+            "rating_count": updated_course.rating_count if updated_course else 1,
+            "student_rating": rating,
+        }
+    
+    def rate_teacher(self, student_id: int, course_id: int, rating: int) -> dict:
+        """Allow a student to rate the teacher after completing their course."""
+        course = self.db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        enrollment = self.db.query(Enrollment).filter(
+            Enrollment.student_id == student_id,
+            Enrollment.course_id == course_id
+        ).first()
+        
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not enrolled in this course"
+            )
+        
+        if not enrollment.is_completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Complete the course before rating the teacher"
+            )
+        
+        teacher_id = course.teacher_id
+        if not teacher_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Course has no assigned teacher"
+            )
+        
+        review = self.db.query(TeacherReview).filter(
+            TeacherReview.student_id == student_id,
+            TeacherReview.teacher_id == teacher_id
+        ).first()
+        
+        now = datetime.utcnow()
+        if review:
+            review.rating = rating
+            review.updated_at = now
+        else:
+            review = TeacherReview(
+                student_id=student_id,
+                teacher_id=teacher_id,
+                rating=rating,
+                created_at=now,
+                updated_at=now,
+            )
+            self.db.add(review)
+        
+        self.db.commit()
+        updated_teacher = self._recalculate_teacher_rating(teacher_id)
+        self.db.commit()
+        
+        if updated_teacher:
+            self.db.refresh(updated_teacher)
+        
+        return {
+            "teacher_id": teacher_id,
+            "rating": updated_teacher.rating if updated_teacher else float(rating),
+            "rating_count": updated_teacher.rating_count if updated_teacher else 1,
+            "student_rating": rating,
+        }
     
     def enroll_student(self, student_id: int, course_id: int) -> Enrollment:
         """
@@ -270,10 +430,41 @@ class LearningService:
         self.db.refresh(enrollment)
         return enrollment
     
-    def _prepare_enrollment_certificate(self, enrollment: Optional[Enrollment]) -> Optional[Enrollment]:
-        if enrollment and enrollment.certificate:
-            self._ensure_certificate_file(enrollment, enrollment.certificate)
+    def _attach_enrollment_metadata(
+        self,
+        enrollment: Optional[Enrollment],
+        student_id: Optional[int] = None
+    ) -> Optional[Enrollment]:
+        if not enrollment:
+            return None
+        
+        if enrollment.certificate:
             enrollment.certificate = self._attach_certificate_metadata(enrollment.certificate)
+        
+        if student_id:
+            review = (
+                self.db.query(CourseReview)
+                .filter(
+                    CourseReview.student_id == student_id,
+                    CourseReview.course_id == enrollment.course_id,
+                )
+                .first()
+            )
+            teacher_review = None
+            teacher_id = enrollment.course.teacher_id if enrollment.course else None
+            if teacher_id:
+                teacher_review = (
+                    self.db.query(TeacherReview)
+                    .filter(
+                        TeacherReview.student_id == student_id,
+                        TeacherReview.teacher_id == teacher_id,
+                    )
+                    .first()
+                )
+            
+            enrollment.course_review = review
+            enrollment.teacher_review = teacher_review
+        
         return enrollment
     
     def get_student_enrollments(self, student_id: int) -> List[Enrollment]:
@@ -281,7 +472,10 @@ class LearningService:
         enrollments = self.db.query(Enrollment).filter(
             Enrollment.student_id == student_id
         ).all()
-        return [self._prepare_enrollment_certificate(enrollment) for enrollment in enrollments]
+        return [
+            self._attach_enrollment_metadata(enrollment, student_id)
+            for enrollment in enrollments
+        ]
     
     def get_enrollment(self, student_id: int, course_id: int) -> Optional[Enrollment]:
         """Get specific enrollment."""
@@ -289,7 +483,7 @@ class LearningService:
             Enrollment.student_id == student_id,
             Enrollment.course_id == course_id
         ).first()
-        return self._prepare_enrollment_certificate(enrollment)
+        return self._attach_enrollment_metadata(enrollment, student_id)
     
     def complete_lesson(self, student_id: int, lesson_id: int) -> Enrollment:
         """

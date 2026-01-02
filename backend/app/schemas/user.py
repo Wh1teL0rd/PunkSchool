@@ -42,6 +42,8 @@ class UserResponse(UserBase):
     created_at: datetime
     bio: Optional[str] = None
     balance: float = 1000.0
+    rating: float = 0.0
+    rating_count: int = 0
     
     class Config:
         from_attributes = True
@@ -51,6 +53,8 @@ class UserBriefResponse(BaseModel):
     """Brief user info for nested responses."""
     id: int
     full_name: str
+    rating: Optional[float] = None
+    rating_count: Optional[int] = None
     
     class Config:
         from_attributes = True
