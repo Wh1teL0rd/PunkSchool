@@ -238,6 +238,13 @@ function TeacherDashboard() {
                     </div>
                   </div>
                   <div className="course-management-actions">
+                    <Link
+                      to={`/course-editor/${course.id}`}
+                      className="btn-edit"
+                      style={{ textDecoration: 'none', display: 'inline-block' }}
+                    >
+                      Управління курсом
+                    </Link>
                     <button
                       onClick={() => openEditModal(course)}
                       className="btn-edit"
@@ -277,8 +284,8 @@ function TeacherDashboard() {
 
       {/* Create/Edit Course Modal */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h2>{editingCourse ? 'Редагувати курс' : 'Створити курс'}</h2>
               <button

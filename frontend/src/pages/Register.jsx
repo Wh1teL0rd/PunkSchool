@@ -58,6 +58,7 @@ function Register() {
       // After successful registration, login automatically
       try {
         await authAPI.login(formData.email, formData.password);
+        setLoading(false); // Скидаємо loading після успішного логіну
         navigate('/');
         // Сповіщаємо про зміну автентифікації після навігації
         setTimeout(() => {
@@ -65,6 +66,7 @@ function Register() {
         }, 100);
       } catch (loginError) {
         // If auto-login fails, redirect to login page
+        setLoading(false); // Скидаємо loading при помилці
         navigate('/login', { 
           state: { message: 'Реєстрація успішна! Будь ласка, увійдіть.' } 
         });

@@ -37,9 +37,10 @@ function Courses() {
   // Filters modal
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
+  // Завантажуємо курси тільки при першому завантаженні
   useEffect(() => {
     fetchCourses();
-  }, [selectedCategory, selectedLevel, sortBy]);
+  }, []);
 
   const fetchCourses = async () => {
     setLoading(true);
@@ -48,20 +49,11 @@ function Courses() {
       const filters = {
         category: selectedCategory || undefined,
         level: selectedLevel || undefined,
+        teacher_search: teacherSearch.trim() || undefined,
         sort_by: sortBy,
       };
       
-      let coursesData = await coursesAPI.getCourses(filters);
-      
-      // Filter by teacher name if search is provided
-      if (teacherSearch.trim()) {
-        const searchLower = teacherSearch.toLowerCase();
-        coursesData = coursesData.filter(course => 
-          course.teacher?.full_name?.toLowerCase().includes(searchLower) ||
-          course.teacher?.email?.toLowerCase().includes(searchLower)
-        );
-      }
-      
+      const coursesData = await coursesAPI.getCourses(filters);
       setCourses(coursesData);
     } catch (err) {
       console.error('Error fetching courses:', err);
@@ -69,6 +61,11 @@ function Courses() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApplyFilters = () => {
+    fetchCourses();
+    setShowFiltersModal(false);
   };
 
   const handlePreviewCourse = async (courseId) => {
@@ -82,11 +79,29 @@ function Courses() {
     }
   };
 
-  const clearFilters = () => {
+  const clearFilters = async () => {
     setSelectedCategory('');
     setSelectedLevel('');
     setTeacherSearch('');
     setSortBy('newest');
+    // Застосовуємо фільтри після очищення
+    setLoading(true);
+    setError(null);
+    try {
+      const filters = {
+        category: undefined,
+        level: undefined,
+        teacher_search: undefined,
+        sort_by: 'newest',
+      };
+      const coursesData = await coursesAPI.getCourses(filters);
+      setCourses(coursesData);
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+      setError('Не вдалося завантажити курси. Спробуйте пізніше.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const hasActiveFilters = selectedCategory || selectedLevel || teacherSearch.trim();
@@ -180,8 +195,8 @@ function Courses() {
 
       {/* Course Preview Modal */}
       {showPreview && previewCourse && (
-        <div className="preview-modal-overlay" onClick={() => setShowPreview(false)}>
-          <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="preview-modal-overlay">
+          <div className="preview-modal">
             <button
               className="preview-close"
               onClick={() => setShowPreview(false)}
@@ -262,8 +277,8 @@ function Courses() {
 
       {/* Filters Modal */}
       {showFiltersModal && (
-        <div className="filters-modal-overlay" onClick={() => setShowFiltersModal(false)}>
-          <div className="filters-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="filters-modal-overlay">
+          <div className="filters-modal">
             <div className="filters-modal-header">
               <h3>Фільтри</h3>
               <button
@@ -309,16 +324,9 @@ function Courses() {
                   type="text"
                   value={teacherSearch}
                   onChange={(e) => setTeacherSearch(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && fetchCourses()}
                   placeholder="Ім'я або email викладача"
                   className="filter-input"
                 />
-                <button
-                  onClick={fetchCourses}
-                  className="search-button"
-                >
-                  Пошук
-                </button>
               </div>
 
               <div className="filter-group">
@@ -336,11 +344,19 @@ function Courses() {
                 </select>
               </div>
 
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="clear-filters-button">
-                  Очистити фільтри
+              <div className="filters-modal-actions">
+                <button
+                  onClick={handleApplyFilters}
+                  className="apply-filters-button"
+                >
+                  Застосувати фільтри
                 </button>
-              )}
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="clear-filters-button">
+                    Очистити фільтри
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

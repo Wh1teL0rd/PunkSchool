@@ -1,11 +1,14 @@
 """
 Course management service - for teachers to create and manage courses.
 """
+import logging
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.models.course import Course, Module, Lesson, Quiz, QuizQuestion
+
+logger = logging.getLogger(__name__)
 from app.models.user import User
 from app.models.enums import UserRole
 from app.schemas.course import (
@@ -143,11 +146,28 @@ class CourseManagementService:
         # Get next order number
         max_order = max((l.order for l in module.lessons), default=-1)
         
+        from app.models.enums import LessonType
+        
+        # Отримуємо значення lesson_type
+        lesson_type_value = None
+        if data.lesson_type:
+            if hasattr(data.lesson_type, 'value'):
+                lesson_type_value = data.lesson_type.value
+            else:
+                lesson_type_value = data.lesson_type
+        else:
+            lesson_type_value = LessonType.TEXT.value
+        
+        # Визначаємо, який тип уроку
+        is_video = (data.lesson_type == LessonType.VIDEO) or (isinstance(data.lesson_type, str) and data.lesson_type == LessonType.VIDEO.value)
+        is_text = (data.lesson_type == LessonType.TEXT) or (isinstance(data.lesson_type, str) and data.lesson_type == LessonType.TEXT.value)
+        
         lesson = Lesson(
             module_id=module_id,
             title=data.title,
-            video_url=data.video_url,
-            content_text=data.content_text,
+            lesson_type=lesson_type_value,
+            video_url=data.video_url if is_video else None,
+            content_text=data.content_text if is_text else None,
             duration_minutes=data.duration_minutes,
             order=data.order if data.order > 0 else max_order + 1
         )
@@ -159,11 +179,34 @@ class CourseManagementService:
     
     def update_lesson(self, lesson_id: int, teacher_id: int, data: LessonCreateDTO) -> Lesson:
         """Update a lesson."""
+        from app.models.enums import LessonType
+        
         lesson = self._get_teacher_lesson(lesson_id, teacher_id)
         
         lesson.title = data.title
-        lesson.video_url = data.video_url
-        lesson.content_text = data.content_text
+        if data.lesson_type:
+            lesson.lesson_type = data.lesson_type.value if hasattr(data.lesson_type, 'value') else data.lesson_type
+        
+        # Отримуємо поточний тип уроку
+        current_type = lesson.lesson_type or LessonType.TEXT.value
+        
+        # Оновлюємо поля залежно від типу уроку
+        if current_type == LessonType.VIDEO.value:
+            lesson.video_url = data.video_url
+            lesson.content_text = None
+        elif current_type == LessonType.TEXT.value:
+            lesson.content_text = data.content_text
+            lesson.video_url = None
+        elif current_type == LessonType.QUIZ.value:
+            lesson.video_url = None
+            lesson.content_text = None
+        else:
+            # Якщо тип не вказано, зберігаємо обидва поля
+            if data.video_url is not None:
+                lesson.video_url = data.video_url
+            if data.content_text is not None:
+                lesson.content_text = data.content_text
+        
         lesson.duration_minutes = data.duration_minutes
         if data.order > 0:
             lesson.order = data.order
@@ -209,19 +252,101 @@ class CourseManagementService:
         self.db.add(quiz)
         self.db.flush()  # Get quiz ID
         
-        # Add questions
-        for q_data in data.questions:
-            question = QuizQuestion(
-                quiz_id=quiz.id,
-                question_text=q_data.question_text,
-                options=q_data.options,
-                correct_option_index=q_data.correct_option_index
-            )
-            self.db.add(question)
+        # Add questions (якщо вони є)
+        if data.questions:
+            for q_data in data.questions:
+                question = QuizQuestion(
+                    quiz_id=quiz.id,
+                    question_text=q_data.question_text,
+                    options=q_data.options,
+                    correct_option_index=q_data.correct_option_index,
+                    points=q_data.points if hasattr(q_data, 'points') and q_data.points else 1
+                )
+                self.db.add(question)
         
         self.db.commit()
         self.db.refresh(quiz)
         return quiz
+    
+    def update_quiz(self, lesson_id: int, teacher_id: int, data: QuizCreateDTO) -> Quiz:
+        """
+        Update quiz for a lesson (delete old questions and add new ones).
+        
+        Args:
+            lesson_id: Lesson ID
+            teacher_id: Teacher's user ID
+            data: Quiz update data
+        
+        Returns:
+            Updated Quiz instance
+        """
+        lesson = self._get_teacher_lesson(lesson_id, teacher_id)
+        
+        if not lesson.quiz:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quiz not found for this lesson"
+            )
+        
+        quiz = lesson.quiz
+        
+        # Update quiz title and passing score (завжди оновлюємо, навіть якщо порожні)
+        quiz.title = data.title if data.title else quiz.title
+        quiz.passing_score = data.passing_score if data.passing_score is not None else quiz.passing_score
+        
+        # Delete old questions using query to ensure they are deleted
+        from sqlalchemy.orm import joinedload
+        # Спочатку завантажуємо всі питання
+        old_questions = self.db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz.id).all()
+        logger.info(f"Deleting {len(old_questions)} old questions for quiz {quiz.id}")
+        for question in old_questions:
+            self.db.delete(question)
+        self.db.flush()  # Виконуємо видалення перед додаванням нових
+        
+        # Add new questions (якщо вони є)
+        questions_count = len(data.questions) if data.questions else 0
+        logger.info(f"Updating quiz {quiz.id}: received {questions_count} questions")
+        logger.info(f"Quiz data: title='{data.title}', passing_score={data.passing_score}")
+        
+        if data.questions and len(data.questions) > 0:
+            for idx, q_data in enumerate(data.questions):
+                logger.info(f"Adding question {idx + 1}: text='{q_data.question_text[:50]}...', options={len(q_data.options) if q_data.options else 0}, correct={q_data.correct_option_index}, points={q_data.points if hasattr(q_data, 'points') else 1}")
+                question = QuizQuestion(
+                    quiz_id=quiz.id,
+                    question_text=q_data.question_text,
+                    options=q_data.options,
+                    correct_option_index=q_data.correct_option_index,
+                    points=q_data.points if hasattr(q_data, 'points') and q_data.points else 1
+                )
+                self.db.add(question)
+        else:
+            logger.info(f"No questions to add for quiz {quiz.id}")
+        
+        try:
+            self.db.commit()
+            logger.info(f"Quiz {quiz.id} commit successful")
+        except Exception as e:
+            logger.error(f"Error committing quiz {quiz.id}: {e}")
+            self.db.rollback()
+            raise
+        
+        # Перезавантажуємо quiz з питаннями після commit (використовуємо новий query)
+        quiz_loaded = self.db.query(Quiz).options(joinedload(Quiz.questions)).filter(Quiz.id == quiz.id).first()
+        
+        if not quiz_loaded:
+            logger.error(f"Quiz {quiz.id} not found after commit!")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Quiz not found after update")
+        
+        # Перевіряємо, чи питання збереглися
+        questions_saved = len(quiz_loaded.questions) if quiz_loaded.questions else 0
+        logger.info(f"Quiz {quiz.id} after update: {questions_saved} questions saved in DB")
+        if questions_saved > 0:
+            for idx, q in enumerate(quiz_loaded.questions):
+                logger.info(f"  Saved question {idx + 1}: {q.question_text[:50]}... ({len(q.options)} options, correct={q.correct_option_index}, points={q.points})")
+        else:
+            logger.warning(f"Quiz {quiz.id} has no questions after update!")
+        
+        return quiz_loaded
     
     def publish_course(self, course_id: int, teacher_id: int) -> bool:
         """

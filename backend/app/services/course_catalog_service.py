@@ -25,6 +25,7 @@ class CourseCatalogService:
         level: Optional[DifficultyLevel] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
+        teacher_search: Optional[str] = None,
         sort_strategy: Optional[ICourseSortStrategy] = None,
         published_only: bool = True
     ) -> List[Course]:
@@ -37,12 +38,15 @@ class CourseCatalogService:
             level: Filter by difficulty level
             min_price: Minimum price filter
             max_price: Maximum price filter
+            teacher_search: Search by teacher name or email
             sort_strategy: Sorting strategy (Strategy pattern)
             published_only: Only return published courses
         
         Returns:
             List of filtered and sorted courses
         """
+        from app.models.user import User
+        
         query = self.db.query(Course)
         
         # Apply filters
@@ -61,6 +65,16 @@ class CourseCatalogService:
         if max_price is not None:
             query = query.filter(Course.price <= max_price)
         
+        # Filter by teacher name or email
+        if teacher_search and teacher_search.strip():
+            search_term = f"%{teacher_search.strip()}%"
+            query = query.join(User, Course.teacher_id == User.id).filter(
+                or_(
+                    User.full_name.ilike(search_term),
+                    User.email.ilike(search_term)
+                )
+            )
+        
         # Apply sorting strategy
         if sort_strategy:
             query = sort_strategy.sort(query)
@@ -77,7 +91,37 @@ class CourseCatalogService:
         Returns:
             Course with all related data or None
         """
-        return self.db.query(Course).filter(Course.id == course_id).first()
+        from sqlalchemy.orm import joinedload
+        from app.models.course import Module, Lesson
+        from app.models.enums import LessonType
+        
+        # Спочатку завантажуємо курс без eager loading, щоб уникнути проблем з ENUM
+        course = self.db.query(Course).filter(Course.id == course_id).first()
+        
+        if not course:
+            return None
+        
+        # Завантажуємо модулі та уроки окремо з обробкою помилок ENUM
+        try:
+            # Отримуємо модулі
+            modules = self.db.query(Module).filter(Module.course_id == course_id).all()
+            course.modules = modules
+            
+            # Отримуємо уроки для кожного модуля
+            for module in modules:
+                lessons = self.db.query(Lesson).filter(Lesson.module_id == module.id).all()
+                # Обробляємо кожен урок окремо
+                for lesson in lessons:
+                    # Якщо lesson_type не встановлено або має неправильний формат, встановлюємо за замовчуванням
+                    if not lesson.lesson_type or lesson.lesson_type not in [e.value for e in LessonType]:
+                        lesson.lesson_type = LessonType.TEXT.value
+                        self.db.commit()
+                        self.db.refresh(lesson)
+                module.lessons = lessons
+        except Exception as e:
+            print(f"Warning: Error loading lessons: {e}")
+        
+        return course
     
     def search_courses(self, keyword: str, published_only: bool = True) -> List[Course]:
         """

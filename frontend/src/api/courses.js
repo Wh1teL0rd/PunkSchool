@@ -11,6 +11,7 @@ const coursesAPI = {
    * @param {string} filters.level - Difficulty level (beginner, intermediate, advanced, master)
    * @param {number} filters.min_price - Minimum price
    * @param {number} filters.max_price - Maximum price
+   * @param {string} filters.teacher_search - Search by teacher name or email
    * @param {string} filters.sort_by - Sort option (price_asc, price_desc, rating, popularity, newest, title)
    * @returns {Promise} API response with courses list
    */
@@ -21,6 +22,7 @@ const coursesAPI = {
     if (filters.level) params.append('level', filters.level);
     if (filters.min_price !== undefined) params.append('min_price', filters.min_price);
     if (filters.max_price !== undefined) params.append('max_price', filters.max_price);
+    if (filters.teacher_search) params.append('teacher_search', filters.teacher_search);
     if (filters.sort_by) params.append('sort_by', filters.sort_by);
     
     const queryString = params.toString();

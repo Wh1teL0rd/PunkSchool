@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
-from app.models.enums import CourseCategory, DifficultyLevel
+from app.models.enums import CourseCategory, DifficultyLevel, LessonType
 from app.schemas.user import UserBriefResponse
 
 
@@ -37,6 +37,7 @@ class ModuleResponse(ModuleBase):
 class LessonBase(BaseModel):
     """Base lesson schema."""
     title: str = Field(..., min_length=1, max_length=255)
+    lesson_type: Optional["LessonType"] = None
     video_url: Optional[str] = None
     content_text: Optional[str] = None
     duration_minutes: int = 0
@@ -76,6 +77,7 @@ class QuizQuestionBase(BaseModel):
     question_text: str
     options: List[str]
     correct_option_index: int
+    points: int = Field(default=1, ge=1, description="Points for correct answer")
 
 
 class QuizQuestionCreateDTO(QuizQuestionBase):
@@ -88,6 +90,18 @@ class QuizQuestionResponse(BaseModel):
     id: int
     question_text: str
     options: List[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class QuizQuestionTeacherResponse(BaseModel):
+    """Schema for quiz question response for teachers (includes correct answer and points)."""
+    id: int
+    question_text: str
+    options: List[str]
+    correct_option_index: int
+    points: int
     
     class Config:
         from_attributes = True
@@ -109,6 +123,16 @@ class QuizResponse(QuizBase):
     id: int
     lesson_id: int
     questions: List[QuizQuestionResponse] = []
+    
+    class Config:
+        from_attributes = True
+
+
+class QuizTeacherResponse(QuizBase):
+    """Schema for quiz response for teachers (includes correct answers and points)."""
+    id: int
+    lesson_id: int
+    questions: List[QuizQuestionTeacherResponse] = []
     
     class Config:
         from_attributes = True

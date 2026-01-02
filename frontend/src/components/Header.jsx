@@ -19,27 +19,34 @@ function Header() {
       setLoading(true);
       try {
         console.log('Header: Fetching user data with token:', token.substring(0, 20) + '...');
-        const userData = await authAPI.getCurrentUser();
+        
+        // Додаємо timeout для запобігання безкінечного очікування
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout')), 5000);
+        });
+        
+        const userDataPromise = authAPI.getCurrentUser();
+        const userData = await Promise.race([userDataPromise, timeoutPromise]);
+        
         console.log('Header: User data fetched successfully:', userData);
         setUser(userData);
       } catch (error) {
         console.error('Header: Error fetching user:', error);
         console.error('Header: Error response:', error.response?.data);
         console.error('Header: Error status:', error.response?.status);
-        // Перевіряємо, чи токен все ще існує
-        const tokenAfterError = localStorage.getItem('access_token');
-        console.log('Header: Token after error:', tokenAfterError?.substring(0, 20) + '...');
-        console.log('Header: Request headers:', error.config?.headers);
         
-        // Видаляємо токен тільки якщо це точно 401 помилка (невалідний токен)
-        // Але не видаляємо одразу - можливо це тимчасова помилка
-        if (error.response?.status === 401) {
-          // Даємо ще один шанс - можливо проблема в мережі або сервері
-          console.log('Header: 401 error, but keeping token for now');
-          // Не видаляємо токен одразу - можливо проблема на бекенді
-          // authAPI.logout();
+        // Якщо це timeout або помилка мережі, не видаляємо токен одразу
+        if (error.message === 'Request timeout' || !error.response) {
+          console.log('Header: Request timeout or network error, keeping token');
+          setUser(null);
+        } else if (error.response?.status === 401) {
+          // Якщо токен невалідний, видаляємо його
+          console.log('Header: 401 error - invalid token, removing it');
+          authAPI.logout();
+          setUser(null);
+        } else {
+          setUser(null);
         }
-        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -49,14 +56,10 @@ function Header() {
     }
   };
 
+  // Викликаємо fetchUser при зміні шляху або при монтуванні
   useEffect(() => {
     fetchUser();
   }, [location.pathname]);
-
-  // Додаткова перевірка при монтуванні
-  useEffect(() => {
-    fetchUser();
-  }, []);
 
   // Слухаємо зміни в localStorage (для синхронізації між вкладками)
   useEffect(() => {

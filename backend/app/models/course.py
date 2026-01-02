@@ -9,7 +9,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.models.enums import CourseCategory, DifficultyLevel
+from app.models.enums import CourseCategory, DifficultyLevel, LessonType
 
 
 class Course(Base):
@@ -71,6 +71,7 @@ class Lesson(Base):
     id = Column(Integer, primary_key=True, index=True)
     module_id = Column(Integer, ForeignKey("modules.id"), nullable=False)
     title = Column(String(255), nullable=False)
+    lesson_type = Column(String(50), default=LessonType.TEXT.value, nullable=True)
     video_url = Column(String(500), nullable=True)
     content_text = Column(Text, nullable=True)
     duration_minutes = Column(Integer, default=0)
@@ -81,7 +82,7 @@ class Lesson(Base):
     quiz = relationship("Quiz", back_populates="lesson", uselist=False, cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Lesson(id={self.id}, title='{self.title}')>"
+        return f"<Lesson(id={self.id}, title='{self.title}', type='{self.lesson_type}')>"
 
 
 class Enrollment(Base):
@@ -145,6 +146,7 @@ class QuizQuestion(Base):
     question_text = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)  # List of answer options
     correct_option_index = Column(Integer, nullable=False)
+    points = Column(Integer, default=1, nullable=False)  # Points for correct answer
     
     # Relationships
     quiz = relationship("Quiz", back_populates="questions")

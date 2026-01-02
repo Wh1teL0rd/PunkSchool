@@ -38,11 +38,20 @@ function Login() {
     setLoading(true);
 
     try {
+      // Спочатку перевіряємо доступність бекенду
+      const isBackendAvailable = await authAPI.checkBackendHealth();
+      if (!isBackendAvailable) {
+        setError('Бекенд сервер недоступний. Перевірте, чи запущений сервер на http://localhost:8000');
+        setLoading(false);
+        return;
+      }
+
       const response = await authAPI.login(formData.email, formData.password);
       console.log('Login: Login response:', response);
       console.log('Login: Token in localStorage:', localStorage.getItem('access_token')?.substring(0, 20) + '...');
       console.log('Login: isAuthenticated:', authAPI.isAuthenticated());
       setMessage('Успішно ввійшли! Перенаправляємо...');
+      setLoading(false); // Скидаємо loading після успішного логіну
       // Затримка для показу повідомлення та збереження токену
       setTimeout(() => {
         // Перевіряємо, що токен все ще там
@@ -56,11 +65,10 @@ function Login() {
         }, 300);
       }, 1500);
     } catch (err) {
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Помилка входу. Перевірте email та пароль.');
-      }
+      console.error('Login error:', err);
+      // Відображаємо повідомлення про помилку
+      const errorMessage = err.message || err.response?.data?.detail || 'Помилка входу. Перевірте email та пароль.';
+      setError(errorMessage);
       setLoading(false);
     }
   };
