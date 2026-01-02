@@ -3,6 +3,7 @@ Students API endpoints - Learning and progress.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -91,6 +92,18 @@ async def complete_lesson(
     """Mark a lesson as completed."""
     service = LearningService(db)
     enrollment = service.complete_lesson(current_user.id, lesson_id)
+    return enrollment
+
+
+@router.post("/lessons/{lesson_id}/reset", response_model=EnrollmentResponse)
+async def reset_lesson(
+    lesson_id: int,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Reset a lesson completion so student can retake it."""
+    service = LearningService(db)
+    enrollment = service.reset_lesson_completion(current_user.id, lesson_id)
     return enrollment
 
 
@@ -213,6 +226,25 @@ async def generate_certificate(
     service = LearningService(db)
     certificate = service.generate_certificate(enrollment_id)
     return certificate
+
+
+@router.get("/certificates/{certificate_id}/download")
+async def download_certificate(
+    certificate_id: str,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Download PDF certificate."""
+    service = LearningService(db)
+    certificate, file_path = service.get_certificate_download(current_user.id, certificate_id)
+    safe_course_title = (certificate.course_title or "course").replace("/", "-")
+    safe_student_name = (certificate.student_name or "student").replace("/", "-")
+    filename = f"{safe_student_name} - {safe_course_title}.pdf"
+    return FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=filename
+    )
 
 
 # ============== Progress & Analytics endpoints ==============

@@ -19,13 +19,35 @@ api.interceptors.request.use(
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('Auth API: Adding token to request:', config.url, 'Token:', token.substring(0, 20) + '...');
+      console.log(
+        'Auth API: Adding token to request:',
+        config.url,
+        'Token:',
+        token.substring(0, 20) + '...'
+      );
     } else {
       console.log('Auth API: No token found for request:', config.url);
     }
     return config;
   },
+  (error) => Promise.reject(error)
+);
+
+// Global response handler for expired/invalid tokens
+api.interceptors.response.use(
+  (response) => response,
   (error) => {
+    const status = error.response?.status;
+    if (status === 401) {
+      console.warn('Auth API: 401 received – logging user out');
+      localStorage.removeItem('access_token');
+
+      // Redirect to login if not already there
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        const redirectUrl = '/login?sessionExpired=1';
+        window.location.replace(redirectUrl);
+      }
+    }
     return Promise.reject(error);
   }
 );

@@ -43,12 +43,43 @@ const studentsAPI = {
   },
 
   /**
+   * Generate completion certificate for enrollment
+   * @param {number} enrollmentId - Enrollment ID
+   * @returns {Promise} Certificate data
+   */
+  generateCertificate: async (enrollmentId) => {
+    const response = await api.post(`/students/enrollments/${enrollmentId}/certificate`);
+    return response.data;
+  },
+
+  /**
+   * Download certificate PDF (returns axios response with blob data)
+   * @param {string} certificateId - Certificate ID
+   * @returns {Promise} Axios response
+   */
+  downloadCertificate: async (certificateId) => {
+    return api.get(`/students/certificates/${certificateId}/download`, {
+      responseType: 'blob',
+    });
+  },
+
+  /**
    * Complete a lesson
    * @param {number} lessonId - Lesson ID
    * @returns {Promise} API response with updated enrollment
    */
   completeLesson: async (lessonId) => {
     const response = await api.post(`/students/lessons/${lessonId}/complete`);
+    return response.data;
+  },
+
+  /**
+   * Reset lesson completion to retake it
+   * @param {number} lessonId - Lesson ID
+   * @returns {Promise} API response with updated enrollment
+   */
+  resetLesson: async (lessonId) => {
+    const response = await api.post(`/students/lessons/${lessonId}/reset`);
     return response.data;
   },
 

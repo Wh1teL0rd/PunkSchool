@@ -13,6 +13,7 @@ function StudentDashboard() {
   const [recommendedCourses, setRecommendedCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [certificateLoading, setCertificateLoading] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -53,6 +54,52 @@ function StudentDashboard() {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const updateEnrollmentCertificate = (enrollmentId, certificate) => {
+    setEnrollments((prev) =>
+      prev.map((enrollment) =>
+        enrollment.id === enrollmentId ? { ...enrollment, certificate } : enrollment
+      )
+    );
+  };
+
+  const handleGenerateCertificate = async (enrollmentId) => {
+    setCertificateLoading((prev) => ({ ...prev, [enrollmentId]: 'generate' }));
+    try {
+      const certificate = await studentsAPI.generateCertificate(enrollmentId);
+      updateEnrollmentCertificate(enrollmentId, certificate);
+    } catch (err) {
+      console.error('Error generating certificate:', err);
+      alert(err.response?.data?.detail || 'Не вдалося згенерувати сертифікат');
+    } finally {
+      setCertificateLoading((prev) => ({ ...prev, [enrollmentId]: null }));
+    }
+  };
+
+  const handleDownloadCertificate = async (certificate) => {
+    const enrollmentId = certificate?.enrollment_id;
+    if (!certificate?.id || !enrollmentId) return;
+
+    setCertificateLoading((prev) => ({ ...prev, [enrollmentId]: 'download' }));
+    try {
+      const response = await studentsAPI.downloadCertificate(certificate.id);
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      const studentName = certificate.student_name || 'certificate';
+      const courseTitle = certificate.course_title || 'course';
+      link.href = url;
+      link.setAttribute('download', `${studentName} - ${courseTitle}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading certificate:', err);
+      alert('Не вдалося скачати сертифікат');
+    } finally {
+      setCertificateLoading((prev) => ({ ...prev, [enrollmentId]: null }));
+    }
   };
 
   if (loading) {
@@ -164,7 +211,42 @@ function StudentDashboard() {
                   </div>
                   {enrollment.is_completed && (
                     <div className="enrollment-certificate">
-                      <span>🎓 Сертифікат доступний</span>
+                      {enrollment.certificate ? (
+                        <>
+                          <div className="certificate-info">
+                            <div>
+                              🎓 Сертифікат видано {formatDate(enrollment.certificate.issued_at)}
+                            </div>
+                            {enrollment.certificate.total_hours && (
+                              <div>⏱️ {enrollment.certificate.total_hours} годин навчання</div>
+                            )}
+                          </div>
+                          <div className="certificate-actions">
+                            <button
+                              className="btn-download-certificate"
+                              onClick={() => handleDownloadCertificate(enrollment.certificate)}
+                              disabled={certificateLoading[enrollment.id] === 'download'}
+                            >
+                              {certificateLoading[enrollment.id] === 'download'
+                                ? 'Готуємо PDF...'
+                                : 'Завантажити сертифікат'}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p>Після завершення курсу ви можете отримати офіційний сертифікат.</p>
+                          <button
+                            className="btn-generate-certificate"
+                            onClick={() => handleGenerateCertificate(enrollment.id)}
+                            disabled={certificateLoading[enrollment.id] === 'generate'}
+                          >
+                            {certificateLoading[enrollment.id] === 'generate'
+                              ? 'Формуємо...'
+                              : 'Отримати сертифікат'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

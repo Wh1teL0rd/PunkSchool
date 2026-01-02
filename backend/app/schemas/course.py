@@ -64,6 +64,7 @@ class LessonBriefResponse(BaseModel):
     """Brief lesson info."""
     id: int
     title: str
+    lesson_type: Optional["LessonType"] = None
     duration_minutes: int
     order: int
     
@@ -239,7 +240,9 @@ class EnrollmentResponse(BaseModel):
     enrolled_at: datetime
     progress_percent: float
     is_completed: bool
+    completed_lessons: List[int] = Field(default_factory=list)
     course: Optional[CourseBriefResponse] = None
+    certificate: Optional["CertificateResponse"] = None
     
     class Config:
         from_attributes = True
@@ -258,6 +261,10 @@ class CertificateResponse(BaseModel):
     enrollment_id: int
     issued_at: datetime
     pdf_url: Optional[str] = None
+    download_url: Optional[str] = None
+    student_name: Optional[str] = None
+    course_title: Optional[str] = None
+    total_hours: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -279,3 +286,5 @@ class TransactionResponse(BaseModel):
 
 # Update forward references
 ModuleResponse.model_rebuild()
+EnrollmentResponse.model_rebuild()
+CertificateResponse.model_rebuild()

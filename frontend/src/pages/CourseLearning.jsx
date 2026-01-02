@@ -25,6 +25,8 @@ function CourseLearning() {
   const [quizAnswers, setQuizAnswers] = useState({}); // {questionId: selectedOptionIndex}
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizResult, setQuizResult] = useState(null);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [resettingLessonId, setResettingLessonId] = useState(null);
 
   useEffect(() => {
     fetchCourseData();
@@ -115,7 +117,11 @@ function CourseLearning() {
 
   const handleOpenLesson = async (lesson) => {
     setShowLessonModal(true);
-    
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizResult(null);
+    setLessonQuiz(null);
+
     // Завантажуємо повну інформацію про урок (включаючи quiz, якщо є)
     if (lesson.lesson_type === 'quiz') {
       setLoadingQuiz(true);
@@ -170,6 +176,7 @@ function CourseLearning() {
       return;
     }
 
+    setSubmittingQuiz(true);
     try {
       // Формуємо відповіді у форматі {question_id: selected_option_index}
       const answers = {};
@@ -183,8 +190,42 @@ function CourseLearning() {
     } catch (err) {
       console.error('Error submitting quiz:', err);
       alert('Не вдалося відправити тест: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setSubmittingQuiz(false);
     }
   };
+
+  const handleRetakeQuiz = () => {
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizResult(null);
+  };
+
+  const handleResetLesson = async (lessonId) => {
+    setResettingLessonId(lessonId);
+    try {
+      const updatedEnrollment = await studentsAPI.resetLesson(lessonId);
+      setEnrollment(updatedEnrollment);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizResult(null);
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Не вдалося скинути прогрес уроку';
+      alert(errorMessage);
+    } finally {
+      setResettingLessonId(null);
+    }
+  };
+
+  const totalLessons = course?.modules?.reduce((sum, module) => {
+    return sum + (module.lessons?.length || 0);
+  }, 0) || 0;
+
+  const completedLessonsCount = enrollment?.completed_lessons?.length || 0;
+
+  const calculatedProgress = totalLessons > 0
+    ? Math.round((completedLessonsCount / totalLessons) * 100)
+    : Math.round(enrollment?.progress_percent || 0);
 
   if (loading) {
     return (
@@ -225,7 +266,7 @@ function CourseLearning() {
           <div className="course-meta-info">
             <span>{getCategoryLabel(course.category)}</span>
             <span>{getLevelLabel(course.level)}</span>
-            <span>Прогрес: {Math.round(enrollment?.progress_percent || 0)}%</span>
+            <span>Прогрес: {calculatedProgress}%</span>
           </div>
         </div>
 
@@ -379,6 +420,20 @@ function CourseLearning() {
                           <p>Мінімальний бал: {lessonQuiz.passing_score} балів</p>
                         </div>
                       )}
+                      {quizSubmitted && quizResult && !quizResult.passed && (
+                        <div className="quiz-retake-section">
+                          <p className="quiz-retake-hint">
+                            Ви можете перепройти тест, щоб розблокувати завершення уроку.
+                          </p>
+                          <button
+                            type="button"
+                            className="btn-retake-quiz"
+                            onClick={handleRetakeQuiz}
+                          >
+                            Перепройти опитування
+                          </button>
+                        </div>
+                      )}
                       {lessonQuiz.questions && lessonQuiz.questions.length > 0 ? (
                         <div className="quiz-questions">
                           {lessonQuiz.questions.map((question, qIndex) => {
@@ -420,8 +475,9 @@ function CourseLearning() {
                           <button
                             onClick={handleSubmitQuiz}
                             className="btn-submit-quiz"
+                            disabled={submittingQuiz}
                           >
-                            Відправити тест
+                            {submittingQuiz ? 'Відправляємо...' : 'Відправити тест'}
                           </button>
                         </div>
                       )}
@@ -436,23 +492,52 @@ function CourseLearning() {
             </div>
 
             <div className="lesson-modal-footer">
-              {!isLessonCompleted(selectedLesson.id) && (
-                <button
-                  onClick={async () => {
-                    await handleCompleteLesson(selectedLesson.id);
-                    handleCloseLessonModal();
-                  }}
-                  className="btn-complete-lesson-modal"
-                  disabled={completingLessonId === selectedLesson.id}
-                >
-                  {completingLessonId === selectedLesson.id ? 'Завершуємо...' : 'Завершити урок'}
-                </button>
-              )}
-              {isLessonCompleted(selectedLesson.id) && (
-                <div className="lesson-completed-message">
-                  <span>✓ Урок завершено</span>
-                </div>
-              )}
+              {(() => {
+                const lessonCompleted = isLessonCompleted(selectedLesson.id);
+                const requiresQuizPass = selectedLesson.lesson_type === 'quiz';
+                const quizPassed = requiresQuizPass ? !!quizResult?.passed : true;
+                const shouldShowCompleteButton = !lessonCompleted;
+                const completeDisabled =
+                  completingLessonId === selectedLesson.id ||
+                  (requiresQuizPass && !quizPassed);
+
+                return (
+                  <>
+                    {shouldShowCompleteButton && (
+                      <button
+                        onClick={async () => {
+                          await handleCompleteLesson(selectedLesson.id);
+                          handleCloseLessonModal();
+                        }}
+                        className="btn-complete-lesson-modal"
+                        disabled={completeDisabled}
+                      >
+                        {completingLessonId === selectedLesson.id ? 'Завершуємо...' : 'Завершити урок'}
+                      </button>
+                    )}
+                    {requiresQuizPass && !quizPassed && (
+                      <p className="quiz-completion-hint">
+                        Пройдіть тест з потрібним балом, щоб розблокувати завершення уроку.
+                      </p>
+                    )}
+                    {lessonCompleted && (
+                      <div className="lesson-reset-section">
+                        <div className="lesson-completed-message">
+                          <span>✓ Урок завершено</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-reset-lesson"
+                          onClick={() => handleResetLesson(selectedLesson.id)}
+                          disabled={resettingLessonId === selectedLesson.id}
+                        >
+                          {resettingLessonId === selectedLesson.id ? 'Скидаємо...' : 'Повторити урок'}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

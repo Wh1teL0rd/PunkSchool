@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey, Text, Enum as SQLEnum, JSON
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.mutable import MutableList
 
 from app.core.database import Base
 from app.models.enums import CourseCategory, DifficultyLevel, LessonType
@@ -97,7 +98,7 @@ class Enrollment(Base):
     enrolled_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     progress_percent = Column(Float, default=0.0)
     is_completed = Column(Boolean, default=False)
-    completed_lessons = Column(JSON, default=list)  # List of completed lesson IDs
+    completed_lessons = Column(MutableList.as_mutable(JSON), default=list)  # List of completed lesson IDs
     
     # Relationships
     student = relationship("User", back_populates="enrollments")

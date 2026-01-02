@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "Music Course Platform"
     DEBUG: bool = True
+    CERTIFICATES_DIR: str = "generated/certificates"
     
     # Database
     DATABASE_URL: str = "sqlite:///./music_courses.db"
