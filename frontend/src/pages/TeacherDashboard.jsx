@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import teachersAPI from '../api/teachers';
+import { authAPI } from '../api/auth';
 import './Dashboard.css';
 
 import { getCategoryLabel, getLevelLabel, CATEGORIES, LEVELS } from '../utils/translations';
@@ -11,6 +12,7 @@ function TeacherDashboard() {
   const [courses, setCourses] = useState([]);
   const [revenue, setRevenue] = useState(null);
   const [popularity, setPopularity] = useState(null);
+  const [teacherProfile, setTeacherProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -33,15 +35,17 @@ function TeacherDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, revenueData, popularityData] = await Promise.all([
+      const [coursesData, revenueData, popularityData, profileData] = await Promise.all([
         teachersAPI.getMyCourses(),
         teachersAPI.getRevenue(30),
         teachersAPI.getCoursePopularity(),
+        authAPI.getCurrentUser(),
       ]);
 
       setCourses(coursesData);
       setRevenue(revenueData);
       setPopularity(popularityData);
+      setTeacherProfile(profileData);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Не вдалося завантажити дані. Спробуйте пізніше.');
@@ -196,6 +200,20 @@ function TeacherDashboard() {
               <div className="stat-icon">👥</div>
               <div className="stat-value">{revenue?.total_students || 0}</div>
               <div className="stat-label">Студентів</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">⭐</div>
+              <div className="stat-value">
+                {teacherProfile?.rating !== undefined
+                  ? teacherProfile.rating.toFixed(1)
+                  : '0.0'}
+              </div>
+              <div className="stat-label">
+                Середній рейтинг
+                {teacherProfile?.rating_count
+                  ? ` (${teacherProfile.rating_count})`
+                  : ''}
+              </div>
             </div>
           </div>
         </section>
