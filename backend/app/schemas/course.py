@@ -54,6 +54,7 @@ class LessonResponse(LessonBase):
     id: int
     module_id: int
     has_quiz: bool = False
+    quiz: Optional["QuizResponse"] = None
     
     class Config:
         from_attributes = True
@@ -147,7 +148,8 @@ class QuizAttemptResponse(BaseModel):
     """Schema for quiz attempt response."""
     id: int
     quiz_id: int
-    score: int
+    score: int  # Score in points
+    total_score: int  # Total possible score in points
     passed: bool
     attempted_at: datetime
     

@@ -242,5 +242,3 @@ class AnalyticsService:
                 "total": total_revenue
             }
         }
-
-

@@ -87,6 +87,9 @@ function Register() {
   return (
     <div className="register-container">
       <div className="register-card">
+        <Link to="/" className="back-home-button" title="Повернутися на головну">
+          ← На головну
+        </Link>
         <div className="register-header">
           <h1>🎵 Реєстрація</h1>
           <p>Створіть обліковий запис для навчання музиці</p>

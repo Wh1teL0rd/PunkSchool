@@ -6,6 +6,7 @@ import Courses from './pages/Courses';
 import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 import CourseEditor from './pages/CourseEditor';
+import CourseLearning from './pages/CourseLearning';
 import './App.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Route path="/dashboard/student" element={<StudentDashboard />} />
         <Route path="/dashboard/teacher" element={<TeacherDashboard />} />
         <Route path="/course-editor/:courseId" element={<CourseEditor />} />
+        <Route path="/course-learning/:courseId" element={<CourseLearning />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/" replace />} />

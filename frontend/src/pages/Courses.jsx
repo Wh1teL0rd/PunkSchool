@@ -1,28 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import coursesAPI from '../api/courses';
+import studentsAPI from '../api/students';
+import { authAPI } from '../api/auth';
+import { CATEGORIES, LEVELS } from '../utils/translations';
 import './Courses.css';
 
-const CATEGORIES = {
-  guitar: 'Гітара',
-  drums: 'Барабани',
-  vocals: 'Вокал',
-  keyboards: 'Клавішні',
-  theory: 'Теорія музики',
-};
-
-const LEVELS = {
-  beginner: 'Початковий',
-  intermediate: 'Середній',
-  advanced: 'Просунутий',
-  master: 'Майстер',
-};
-
 function Courses() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
+  const [enrollments, setEnrollments] = useState([]);
+  const [enrollingCourseId, setEnrollingCourseId] = useState(null);
   
   // Filters
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -37,10 +30,31 @@ function Courses() {
   // Filters modal
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
-  // Завантажуємо курси тільки при першому завантаженні
+  // Завантажуємо курси та дані користувача
   useEffect(() => {
     fetchCourses();
+    fetchUserData();
   }, []);
+
+  const fetchUserData = async () => {
+    if (authAPI.isAuthenticated()) {
+      try {
+        const userData = await authAPI.getCurrentUser();
+        setUser(userData);
+        // Завантажуємо enrollments для студентів
+        if (userData.role === 'student') {
+          try {
+            const enrollmentsData = await studentsAPI.getEnrollments();
+            setEnrollments(enrollmentsData);
+          } catch (err) {
+            console.error('Error fetching enrollments:', err);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+      }
+    }
+  };
 
   const fetchCourses = async () => {
     setLoading(true);
@@ -105,6 +119,41 @@ function Courses() {
   };
 
   const hasActiveFilters = selectedCategory || selectedLevel || teacherSearch.trim();
+
+  const isEnrolled = (courseId) => {
+    return enrollments.some(e => e.course?.id === courseId);
+  };
+
+  const handleEnroll = async (courseId) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (user.role !== 'student') {
+      alert('Тільки студенти можуть записуватись на курси');
+      return;
+    }
+
+    if (isEnrolled(courseId)) {
+      navigate(`/course-learning/${courseId}`);
+      return;
+    }
+
+    setEnrollingCourseId(courseId);
+    try {
+      await studentsAPI.enrollInCourse(courseId);
+      alert('Успішно записано на курс!');
+      // Оновлюємо дані
+      await fetchUserData();
+      await fetchCourses();
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Не вдалося записатись на курс';
+      alert(errorMessage);
+    } finally {
+      setEnrollingCourseId(null);
+    }
+  };
 
   return (
     <div className="courses-page">
@@ -178,12 +227,29 @@ function Courses() {
                     </div>
                     
                     <div className="course-actions">
-                      <button
-                        onClick={() => handlePreviewCourse(course.id)}
-                        className="btn-preview"
-                      >
-                        Переглянути програму
-                      </button>
+                      {user && user.role === 'student' && isEnrolled(course.id) ? (
+                        <button
+                          onClick={() => navigate(`/course-learning/${course.id}`)}
+                          className="btn-preview"
+                        >
+                          Продовжити навчання
+                        </button>
+                      ) : user && user.role === 'student' ? (
+                        <button
+                          onClick={() => handleEnroll(course.id)}
+                          className="btn-preview"
+                          disabled={enrollingCourseId === course.id}
+                        >
+                          {enrollingCourseId === course.id ? 'Записуємось...' : course.price === 0 ? 'Записатись безкоштовно' : `Записатись за ${course.price} ₴`}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePreviewCourse(course.id)}
+                          className="btn-preview"
+                        >
+                          Переглянути програму
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -200,8 +266,9 @@ function Courses() {
             <button
               className="preview-close"
               onClick={() => setShowPreview(false)}
+              aria-label="Закрити"
             >
-              ×
+              <span>×</span>
             </button>
             
             <div className="preview-header">
@@ -284,8 +351,9 @@ function Courses() {
               <button
                 className="filters-modal-close"
                 onClick={() => setShowFiltersModal(false)}
+                aria-label="Закрити"
               >
-                ×
+                <span>×</span>
               </button>
             </div>
             

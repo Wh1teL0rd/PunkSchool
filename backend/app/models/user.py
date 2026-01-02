@@ -2,7 +2,7 @@
 User model for database.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, Text
+from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, Text, Float
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -23,6 +23,7 @@ class User(Base):
     role = Column(SQLEnum(UserRole), default=UserRole.STUDENT, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     bio = Column(Text, nullable=True)  # For teachers
+    balance = Column(Float, default=1000.0, nullable=False)  # User balance for purchasing courses
     
     # Relationships
     courses_teaching = relationship("Course", back_populates="teacher", lazy="dynamic")

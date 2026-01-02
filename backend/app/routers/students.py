@@ -94,6 +94,30 @@ async def complete_lesson(
     return enrollment
 
 
+@router.post("/modules/{module_id}/complete", response_model=EnrollmentResponse)
+async def complete_module(
+    module_id: int,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Mark a module as completed (only if all lessons are completed)."""
+    service = LearningService(db)
+    enrollment = service.complete_module(current_user.id, module_id)
+    return enrollment
+
+
+@router.post("/courses/{course_id}/complete", response_model=EnrollmentResponse)
+async def complete_course(
+    course_id: int,
+    current_user: User = Depends(require_role([UserRole.STUDENT])),
+    db: Session = Depends(get_db)
+):
+    """Mark a course as completed (only if all modules are completed)."""
+    service = LearningService(db)
+    enrollment = service.complete_course(current_user.id, course_id)
+    return enrollment
+
+
 # ============== Quiz endpoints ==============
 
 @router.get("/quizzes/{quiz_id}", response_model=QuizResponse)
@@ -136,7 +160,20 @@ async def submit_quiz(
     """Submit quiz answers and get results."""
     service = LearningService(db)
     attempt = service.submit_quiz(current_user.id, quiz_id, data.answers)
-    return attempt
+    
+    # Get total_score from attempt attribute
+    total_score = getattr(attempt, 'total_score', 0)
+    
+    # Create response with total_score
+    response_data = {
+        'id': attempt.id,
+        'quiz_id': attempt.quiz_id,
+        'score': attempt.score,
+        'total_score': total_score,
+        'passed': attempt.passed,
+        'attempted_at': attempt.attempted_at
+    }
+    return response_data
 
 
 @router.get("/quizzes/{quiz_id}/attempts", response_model=List[QuizAttemptResponse])

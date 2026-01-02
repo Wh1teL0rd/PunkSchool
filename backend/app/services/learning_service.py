@@ -24,7 +24,7 @@ class LearningService:
     
     def enroll_student(self, student_id: int, course_id: int) -> Enrollment:
         """
-        Enroll a student in a course.
+        Enroll a student in a course with payment processing.
         
         Args:
             student_id: Student's user ID
@@ -34,7 +34,7 @@ class LearningService:
             Created Enrollment instance
         
         Raises:
-            HTTPException: If already enrolled or course not found
+            HTTPException: If already enrolled, course not found, or insufficient balance
         """
         # Check if course exists and is published
         course = self.db.query(Course).filter(
@@ -60,6 +60,36 @@ class LearningService:
                 detail="Already enrolled in this course"
             )
         
+        # Get student and teacher
+        student = self.db.query(User).filter(User.id == student_id).first()
+        teacher = self.db.query(User).filter(User.id == course.teacher_id).first()
+        
+        if not student:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student not found"
+            )
+        
+        if not teacher:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Teacher not found"
+            )
+        
+        # Check balance if course is not free
+        if course.price > 0:
+            if student.balance < course.price:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Insufficient balance. Required: {course.price} ₴, Available: {student.balance} ₴"
+                )
+            
+            # Deduct from student balance
+            student.balance -= course.price
+            
+            # Add to teacher balance
+            teacher.balance += course.price
+        
         # Create enrollment
         enrollment = Enrollment(
             student_id=student_id,
@@ -79,6 +109,116 @@ class LearningService:
             date=datetime.utcnow()
         )
         self.db.add(transaction)
+        
+        self.db.commit()
+        self.db.refresh(enrollment)
+        return enrollment
+    
+    def complete_module(self, student_id: int, module_id: int) -> Enrollment:
+        """
+        Mark a module as completed for a student (only if all lessons are completed).
+        
+        Args:
+            student_id: Student's user ID
+            module_id: Module ID
+        
+        Returns:
+            Updated Enrollment instance
+        
+        Raises:
+            HTTPException: If module not found, not enrolled, or not all lessons completed
+        """
+        # Get module and its course
+        module = self.db.query(Module).filter(Module.id == module_id).first()
+        if not module:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Module not found"
+            )
+        
+        course = module.course
+        enrollment = self.get_enrollment(student_id, course.id)
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enrolled in this course"
+            )
+        
+        # Check if all lessons in module are completed
+        completed_lessons = enrollment.completed_lessons or []
+        module_lesson_ids = [lesson.id for lesson in module.lessons]
+        
+        if not module_lesson_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Module has no lessons"
+            )
+        
+        if not all(lesson_id in completed_lessons for lesson_id in module_lesson_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Not all lessons in this module are completed"
+            )
+        
+        # Module is already effectively completed if all lessons are done
+        # Recalculate progress
+        total_lessons = sum(len(m.lessons) for m in course.modules)
+        enrollment.update_progress(len(completed_lessons), total_lessons)
+        
+        self.db.commit()
+        self.db.refresh(enrollment)
+        return enrollment
+    
+    def complete_course(self, student_id: int, course_id: int) -> Enrollment:
+        """
+        Mark a course as completed for a student (only if all modules are completed).
+        
+        Args:
+            student_id: Student's user ID
+            course_id: Course ID
+        
+        Returns:
+            Updated Enrollment instance
+        
+        Raises:
+            HTTPException: If course not found, not enrolled, or not all modules completed
+        """
+        # Get course
+        course = self.db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        enrollment = self.get_enrollment(student_id, course_id)
+        if not enrollment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enrolled in this course"
+            )
+        
+        # Check if all lessons in all modules are completed
+        completed_lessons = enrollment.completed_lessons or []
+        all_lesson_ids = []
+        for module in course.modules:
+            all_lesson_ids.extend([lesson.id for lesson in module.lessons])
+        
+        if not all_lesson_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Course has no lessons"
+            )
+        
+        if not all(lesson_id in completed_lessons for lesson_id in all_lesson_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Not all lessons in this course are completed"
+            )
+        
+        # Mark course as completed
+        enrollment.is_completed = True
+        enrollment.progress_percent = 100.0
         
         self.db.commit()
         self.db.refresh(enrollment)
@@ -172,16 +312,23 @@ class LearningService:
                 detail="Not enrolled in this course"
             )
         
-        # Calculate score
-        total_questions = len(quiz.questions)
-        correct_answers = 0
+        # Calculate score in points (not percentage)
+        total_score = 0
+        score = 0
         
         for question in quiz.questions:
-            student_answer = answers.get(str(question.id))
-            if student_answer == question.correct_option_index:
-                correct_answers += 1
+            points = question.points if hasattr(question, 'points') and question.points else 1
+            total_score += points
+            
+            # Handle both string and int question IDs
+            student_answer = answers.get(str(question.id)) or answers.get(question.id)
+            if student_answer is not None:
+                try:
+                    if int(student_answer) == question.correct_option_index:
+                        score += points
+                except (ValueError, TypeError):
+                    pass
         
-        score = int((correct_answers / total_questions) * 100) if total_questions > 0 else 0
         passed = score >= quiz.passing_score
         
         # Create attempt record
@@ -201,6 +348,9 @@ class LearningService:
         
         self.db.commit()
         self.db.refresh(attempt)
+        
+        # Add total_score as attribute for response
+        attempt.total_score = total_score
         return attempt
     
     def get_quiz_attempts(self, student_id: int, quiz_id: int) -> List[QuizAttempt]:
@@ -265,9 +415,14 @@ class LearningService:
             lesson_id: Lesson ID
         
         Returns:
-            Lesson instance
+            Lesson instance with quiz loaded if exists
         """
-        lesson = self.db.query(Lesson).filter(Lesson.id == lesson_id).first()
+        from sqlalchemy.orm import joinedload
+        
+        lesson = self.db.query(Lesson).options(
+            joinedload(Lesson.quiz).joinedload(Quiz.questions)
+        ).filter(Lesson.id == lesson_id).first()
+        
         if not lesson:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

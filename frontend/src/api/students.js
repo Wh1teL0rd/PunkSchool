@@ -41,6 +41,67 @@ const studentsAPI = {
     const response = await api.get('/students/progress');
     return response.data;
   },
+
+  /**
+   * Complete a lesson
+   * @param {number} lessonId - Lesson ID
+   * @returns {Promise} API response with updated enrollment
+   */
+  completeLesson: async (lessonId) => {
+    const response = await api.post(`/students/lessons/${lessonId}/complete`);
+    return response.data;
+  },
+
+  /**
+   * Complete a module
+   * @param {number} moduleId - Module ID
+   * @returns {Promise} API response with updated enrollment
+   */
+  completeModule: async (moduleId) => {
+    const response = await api.post(`/students/modules/${moduleId}/complete`);
+    return response.data;
+  },
+
+  /**
+   * Complete a course
+   * @param {number} courseId - Course ID
+   * @returns {Promise} API response with updated enrollment
+   */
+  completeCourse: async (courseId) => {
+    const response = await api.post(`/students/courses/${courseId}/complete`);
+    return response.data;
+  },
+
+  /**
+   * Get lesson details (for enrolled students)
+   * @param {number} lessonId - Lesson ID
+   * @returns {Promise} API response with lesson details
+   */
+  getLesson: async (lessonId) => {
+    const response = await api.get(`/students/lessons/${lessonId}`);
+    return response.data;
+  },
+
+  /**
+   * Get quiz for a lesson (for enrolled students)
+   * @param {number} quizId - Quiz ID
+   * @returns {Promise} API response with quiz data (without correct answers)
+   */
+  getQuiz: async (quizId) => {
+    const response = await api.get(`/students/quizzes/${quizId}`);
+    return response.data;
+  },
+
+  /**
+   * Submit quiz answers
+   * @param {number} quizId - Quiz ID
+   * @param {Object} data - Quiz submission data {answers: {questionId: optionIndex}}
+   * @returns {Promise} API response with quiz attempt results
+   */
+  submitQuiz: async (quizId, data) => {
+    const response = await api.post(`/students/quizzes/${quizId}/submit`, data);
+    return response.data;
+  },
 };
 
 export default studentsAPI;

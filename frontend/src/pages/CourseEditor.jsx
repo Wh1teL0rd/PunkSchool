@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import teachersAPI from '../api/teachers';
 import coursesAPI from '../api/courses';
+import { getCategoryLabel, getLevelLabel } from '../utils/translations';
 import './CourseEditor.css';
 
 function CourseEditor() {
@@ -535,10 +536,10 @@ function CourseEditor() {
         {/* Course Info */}
         <div className="course-info-card">
           <div className="course-info-item">
-            <strong>Категорія:</strong> {course.category}
+            <strong>Категорія:</strong> {getCategoryLabel(course.category)}
           </div>
           <div className="course-info-item">
-            <strong>Рівень:</strong> {course.level}
+            <strong>Рівень:</strong> {getLevelLabel(course.level)}
           </div>
           <div className="course-info-item">
             <strong>Ціна:</strong> {course.price === 0 ? 'Безкоштовно' : `${course.price} ₴`}
@@ -651,8 +652,8 @@ function CourseEditor() {
           <div className="modal-content">
             <div className="modal-header">
               <h2>{editingModule ? 'Редагувати модуль' : 'Додати модуль'}</h2>
-              <button className="modal-close" onClick={() => setShowModuleModal(false)}>
-                ×
+              <button className="modal-close" onClick={() => setShowModuleModal(false)} aria-label="Закрити">
+                <span>×</span>
               </button>
             </div>
             <form onSubmit={editingModule ? handleUpdateModule : handleAddModule}>
@@ -693,8 +694,8 @@ function CourseEditor() {
           <div className="modal-content modal-content-large">
             <div className="modal-header">
               <h2>{editingLesson ? 'Редагувати урок' : 'Додати урок'}</h2>
-              <button className="modal-close" onClick={() => setShowLessonModal(false)}>
-                ×
+              <button className="modal-close" onClick={() => setShowLessonModal(false)} aria-label="Закрити">
+                <span>×</span>
               </button>
             </div>
             <form onSubmit={editingLesson ? handleUpdateLesson : handleAddLesson}>

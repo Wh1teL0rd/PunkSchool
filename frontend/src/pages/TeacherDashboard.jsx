@@ -5,13 +5,7 @@ import Footer from '../components/Footer';
 import teachersAPI from '../api/teachers';
 import './Dashboard.css';
 
-const CATEGORIES = {
-  guitar: 'Гітара',
-  drums: 'Барабани',
-  vocals: 'Вокал',
-  keyboards: 'Клавішні',
-  theory: 'Теорія музики',
-};
+import { getCategoryLabel, getLevelLabel, CATEGORIES, LEVELS } from '../utils/translations';
 
 function TeacherDashboard() {
   const [courses, setCourses] = useState([]);
@@ -233,6 +227,7 @@ function TeacherDashboard() {
                     <p>{course.description || 'Без опису'}</p>
                     <div className="course-management-meta">
                       <span>{CATEGORIES[course.category] || course.category}</span>
+                      <span>{LEVELS[course.level] || course.level}</span>
                       <span>⭐ {course.rating.toFixed(1)}</span>
                       <span>{course.price === 0 ? 'Безкоштовно' : `${course.price} ₴`}</span>
                     </div>
@@ -294,8 +289,9 @@ function TeacherDashboard() {
                   setShowCreateModal(false);
                   setEditingCourse(null);
                 }}
+                aria-label="Закрити"
               >
-                ×
+                <span>×</span>
               </button>
             </div>
             <form onSubmit={editingCourse ? handleUpdateCourse : handleCreateCourse}>
@@ -347,10 +343,9 @@ function TeacherDashboard() {
                     onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                     required
                   >
-                    <option value="beginner">Початковий</option>
-                    <option value="intermediate">Середній</option>
-                    <option value="advanced">Просунутий</option>
-                    <option value="master">Майстер</option>
+                    {Object.entries(LEVELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
                   </select>
                 </div>
               </div>

@@ -142,6 +142,16 @@ function Header() {
                        user.role === 'teacher' ? 'Викладач' : 
                        'Адміністратор'}
                     </span>
+                    {user.role === 'student' && user.balance !== undefined && (
+                      <span className="user-balance">
+                        💰 Баланс: {user.balance.toFixed(2)} ₴
+                      </span>
+                    )}
+                    {user.role === 'teacher' && user.balance !== undefined && (
+                      <span className="user-balance">
+                        💰 Баланс: {user.balance.toFixed(2)} ₴
+                      </span>
+                    )}
                   </div>
                   <div className="dropdown-divider"></div>
                   {user.role === 'student' && (

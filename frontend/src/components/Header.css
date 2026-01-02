@@ -182,6 +182,13 @@
   font-weight: 500;
 }
 
+.user-balance {
+  font-size: 0.85rem;
+  color: #eab308;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
 .dropdown-divider {
   height: 1px;
   background: #e2e8f0;

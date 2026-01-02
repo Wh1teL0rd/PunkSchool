@@ -4,22 +4,8 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import studentsAPI from '../api/students';
 import coursesAPI from '../api/courses';
+import { CATEGORIES, LEVELS } from '../utils/translations';
 import './Dashboard.css';
-
-const CATEGORIES = {
-  guitar: 'Гітара',
-  drums: 'Барабани',
-  vocals: 'Вокал',
-  keyboards: 'Клавішні',
-  theory: 'Теорія музики',
-};
-
-const LEVELS = {
-  beginner: 'Початковий',
-  intermediate: 'Середній',
-  advanced: 'Просунутий',
-  master: 'Майстер',
-};
 
 function StudentDashboard() {
   const [enrollments, setEnrollments] = useState([]);
@@ -167,6 +153,14 @@ function StudentDashboard() {
                       </div>
                       <span className="progress-text">{Math.round(enrollment.progress_percent || 0)}%</span>
                     </div>
+                    {enrollment.course && (
+                      <Link
+                        to={`/course-learning/${enrollment.course.id}`}
+                        className="btn-continue-learning"
+                      >
+                        {enrollment.is_completed ? 'Переглянути курс' : 'Продовжити навчання'}
+                      </Link>
+                    )}
                   </div>
                   {enrollment.is_completed && (
                     <div className="enrollment-certificate">

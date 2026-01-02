@@ -46,6 +46,8 @@ class Database:
         self._migrate_lesson_type()
         # Add points column to quiz_questions if it doesn't exist (migration)
         self._migrate_quiz_questions_points()
+        # Add balance column to users table if it doesn't exist (migration)
+        self._migrate_user_balance()
     
     def _migrate_lesson_type(self):
         """Add lesson_type column to lessons table if it doesn't exist."""
@@ -99,6 +101,33 @@ class Database:
                     print("✅ Migration: points column already exists in quiz_questions table")
         except Exception as e:
             print(f"⚠️ Migration warning (quiz_questions.points): {e}")
+
+    def _migrate_user_balance(self):
+        """Add balance column to users table if it doesn't exist."""
+        from sqlalchemy import text
+        try:
+            with self.engine.connect() as conn:
+                # Check if users table exists
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+                if not result.fetchone():
+                    print("⚠️ Migration: users table doesn't exist yet, skipping balance migration")
+                    return
+                
+                # Check if column exists
+                result = conn.execute(text("PRAGMA table_info(users)"))
+                columns = [row[1] for row in result]
+                
+                if 'balance' not in columns:
+                    # Add column with default value
+                    conn.execute(text("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 1000.0"))
+                    # Update existing rows
+                    conn.execute(text("UPDATE users SET balance = 1000.0 WHERE balance IS NULL"))
+                    conn.commit()
+                    print("✅ Migration: Added balance column to users table")
+                else:
+                    print("✅ Migration: balance column already exists in users table")
+        except Exception as e:
+            print(f"⚠️ Migration warning (users.balance): {e}")
 
 
 # Global database instance

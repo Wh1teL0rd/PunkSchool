@@ -41,6 +41,7 @@ class UserResponse(UserBase):
     role: UserRole
     created_at: datetime
     bio: Optional[str] = None
+    balance: float = 1000.0
     
     class Config:
         from_attributes = True
