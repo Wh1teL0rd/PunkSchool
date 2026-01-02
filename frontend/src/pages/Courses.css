@@ -1,3 +1,21 @@
+.btn-secondary {
+  width: 100%;
+  padding: 0.65rem;
+  background: transparent;
+  color: #2d3748;
+  border: 2px solid #cbd5f5;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #edf2ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
 .courses-page {
   min-height: 100vh;
   background: #f7fafc;
@@ -233,6 +251,9 @@
 
 .course-actions {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .btn-preview {

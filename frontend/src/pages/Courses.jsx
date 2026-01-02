@@ -155,6 +155,51 @@ function Courses() {
     }
   };
 
+  const renderCourseActions = (course) => {
+    const previewButton = (
+      <button
+        onClick={() => handlePreviewCourse(course.id)}
+        className="btn-secondary"
+      >
+        Переглянути програму
+      </button>
+    );
+
+    if (user && user.role === 'student') {
+      if (isEnrolled(course.id)) {
+        return (
+          <>
+            <button
+              onClick={() => navigate(`/course-learning/${course.id}`)}
+              className="btn-preview"
+            >
+              Продовжити навчання
+            </button>
+            {previewButton}
+          </>
+        );
+      }
+      return (
+        <>
+          <button
+            onClick={() => handleEnroll(course.id)}
+            className="btn-preview"
+            disabled={enrollingCourseId === course.id}
+          >
+            {enrollingCourseId === course.id
+              ? 'Записуємось...'
+              : course.price === 0
+              ? 'Записатись безкоштовно'
+              : `Записатись за ${course.price} ₴`}
+          </button>
+          {previewButton}
+        </>
+      );
+    }
+
+    return previewButton;
+  };
+
   return (
     <div className="courses-page">
       <Header />
@@ -227,29 +272,7 @@ function Courses() {
                     </div>
                     
                     <div className="course-actions">
-                      {user && user.role === 'student' && isEnrolled(course.id) ? (
-                        <button
-                          onClick={() => navigate(`/course-learning/${course.id}`)}
-                          className="btn-preview"
-                        >
-                          Продовжити навчання
-                        </button>
-                      ) : user && user.role === 'student' ? (
-                        <button
-                          onClick={() => handleEnroll(course.id)}
-                          className="btn-preview"
-                          disabled={enrollingCourseId === course.id}
-                        >
-                          {enrollingCourseId === course.id ? 'Записуємось...' : course.price === 0 ? 'Записатись безкоштовно' : `Записатись за ${course.price} ₴`}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handlePreviewCourse(course.id)}
-                          className="btn-preview"
-                        >
-                          Переглянути програму
-                        </button>
-                      )}
+                      {renderCourseActions(course)}
                     </div>
                   </div>
                 ))}
