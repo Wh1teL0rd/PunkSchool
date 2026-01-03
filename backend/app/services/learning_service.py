@@ -569,7 +569,9 @@ class LearningService:
             total_score += points
             
             # Handle both string and int question IDs
-            student_answer = answers.get(str(question.id)) or answers.get(question.id)
+            student_answer = answers.get(str(question.id))
+            if student_answer is None:
+                student_answer = answers.get(question.id)
             if student_answer is not None:
                 try:
                     if int(student_answer) == question.correct_option_index:
