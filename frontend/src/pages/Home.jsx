@@ -1,9 +1,29 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { authAPI } from '../api/auth';
 import './Home.css';
 
 function Home() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setIsLoggedIn(authAPI.isAuthenticated());
+
+    const handleAuthChange = () => {
+      setIsLoggedIn(authAPI.isAuthenticated());
+    };
+
+    window.addEventListener('auth-changed', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('auth-changed', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, []);
+
   return (
     <div className="home-page">
       <Header />
@@ -19,9 +39,11 @@ function Home() {
               клавішні та теорія музики - все в одному місці.
             </p>
             <div className="hero-buttons">
-              <Link to="/register" className="btn btn-primary">
-                Почати навчання
-              </Link>
+              {!isLoggedIn && (
+                <Link to="/register" className="btn btn-primary">
+                  Почати навчання
+                </Link>
+              )}
               <Link to="/courses" className="btn btn-secondary">
                 Переглянути курси
               </Link>
