@@ -28,17 +28,21 @@ class CourseManagementService:
     def __init__(self, db: Session):
         self.db = db
     
-    def create_course(self, teacher_id: int, data: CourseCreateDTO) -> Course:
+    def create_course(self, current_user: User, data: CourseCreateDTO) -> Course:
         """
         Create a new course.
-        
-        Args:
-            teacher_id: Teacher's user ID
-            data: Course creation data
-        
-        Returns:
-            Created Course instance
+        Admins can create courses for any teacher by specifying teacher_id.
         """
+        if current_user.role == UserRole.ADMIN:
+            teacher_id = self._resolve_teacher_id(data.teacher_id)
+        else:
+            teacher_id = current_user.id
+            if data.teacher_id and data.teacher_id != teacher_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Teachers cannot assign courses to other instructors"
+                )
+
         course = Course(
             teacher_id=teacher_id,
             title=data.title,
@@ -54,7 +58,7 @@ class CourseManagementService:
         self.db.refresh(course)
         return course
     
-    def update_course(self, course_id: int, teacher_id: int, data: CourseUpdateDTO) -> Course:
+    def update_course(self, course_id: int, current_user: User, data: CourseUpdateDTO) -> Course:
         """
         Update an existing course.
         
@@ -69,7 +73,7 @@ class CourseManagementService:
         Raises:
             HTTPException: If course not found or unauthorized
         """
-        course = self._get_teacher_course(course_id, teacher_id)
+        course = self._get_course_with_access(course_id, current_user)
         
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
@@ -79,14 +83,14 @@ class CourseManagementService:
         self.db.refresh(course)
         return course
     
-    def delete_course(self, course_id: int, teacher_id: int) -> bool:
+    def delete_course(self, course_id: int, current_user: User) -> bool:
         """Delete a course."""
-        course = self._get_teacher_course(course_id, teacher_id)
+        course = self._get_course_with_access(course_id, current_user)
         self.db.delete(course)
         self.db.commit()
         return True
     
-    def add_module(self, course_id: int, teacher_id: int, data: ModuleCreateDTO) -> Module:
+    def add_module(self, course_id: int, current_user: User, data: ModuleCreateDTO) -> Module:
         """
         Add a module to a course.
         
@@ -98,7 +102,7 @@ class CourseManagementService:
         Returns:
             Created Module instance
         """
-        course = self._get_teacher_course(course_id, teacher_id)
+        course = self._get_course_with_access(course_id, current_user)
         
         # Get next order number
         max_order = max((m.order for m in course.modules), default=-1)
@@ -114,34 +118,34 @@ class CourseManagementService:
         self.db.refresh(module)
         return module
     
-    def update_module(self, module_id: int, teacher_id: int, title: str) -> Module:
+    def update_module(self, module_id: int, current_user: User, title: str) -> Module:
         """Update a module's title."""
-        module = self._get_teacher_module(module_id, teacher_id)
+        module = self._get_module_with_access(module_id, current_user)
         module.title = title
         self.db.commit()
         self.db.refresh(module)
         return module
     
-    def delete_module(self, module_id: int, teacher_id: int) -> bool:
+    def delete_module(self, module_id: int, current_user: User) -> bool:
         """Delete a module."""
-        module = self._get_teacher_module(module_id, teacher_id)
+        module = self._get_module_with_access(module_id, current_user)
         self.db.delete(module)
         self.db.commit()
         return True
     
-    def add_lesson(self, module_id: int, teacher_id: int, data: LessonCreateDTO) -> Lesson:
+    def add_lesson(self, module_id: int, current_user: User, data: LessonCreateDTO) -> Lesson:
         """
         Add a lesson to a module.
         
         Args:
             module_id: Module ID
-            teacher_id: Teacher's user ID
+            current_user: Authenticated user
             data: Lesson creation data
         
         Returns:
             Created Lesson instance
         """
-        module = self._get_teacher_module(module_id, teacher_id)
+        module = self._get_module_with_access(module_id, current_user)
         
         # Get next order number
         max_order = max((l.order for l in module.lessons), default=-1)
@@ -177,11 +181,11 @@ class CourseManagementService:
         self.db.refresh(lesson)
         return lesson
     
-    def update_lesson(self, lesson_id: int, teacher_id: int, data: LessonCreateDTO) -> Lesson:
+    def update_lesson(self, lesson_id: int, current_user: User, data: LessonCreateDTO) -> Lesson:
         """Update a lesson."""
         from app.models.enums import LessonType
         
-        lesson = self._get_teacher_lesson(lesson_id, teacher_id)
+        lesson = self._get_lesson_with_access(lesson_id, current_user)
         
         lesson.title = data.title
         if data.lesson_type:
@@ -215,26 +219,26 @@ class CourseManagementService:
         self.db.refresh(lesson)
         return lesson
     
-    def delete_lesson(self, lesson_id: int, teacher_id: int) -> bool:
+    def delete_lesson(self, lesson_id: int, current_user: User) -> bool:
         """Delete a lesson."""
-        lesson = self._get_teacher_lesson(lesson_id, teacher_id)
+        lesson = self._get_lesson_with_access(lesson_id, current_user)
         self.db.delete(lesson)
         self.db.commit()
         return True
     
-    def add_quiz(self, lesson_id: int, teacher_id: int, data: QuizCreateDTO) -> Quiz:
+    def add_quiz(self, lesson_id: int, current_user: User, data: QuizCreateDTO) -> Quiz:
         """
         Add a quiz to a lesson.
         
         Args:
             lesson_id: Lesson ID
-            teacher_id: Teacher's user ID
+            current_user: Authenticated user
             data: Quiz creation data
         
         Returns:
             Created Quiz instance
         """
-        lesson = self._get_teacher_lesson(lesson_id, teacher_id)
+        lesson = self._get_lesson_with_access(lesson_id, current_user)
         
         # Check if quiz already exists
         if lesson.quiz:
@@ -268,19 +272,19 @@ class CourseManagementService:
         self.db.refresh(quiz)
         return quiz
     
-    def update_quiz(self, lesson_id: int, teacher_id: int, data: QuizCreateDTO) -> Quiz:
+    def update_quiz(self, lesson_id: int, current_user: User, data: QuizCreateDTO) -> Quiz:
         """
         Update quiz for a lesson (delete old questions and add new ones).
         
         Args:
             lesson_id: Lesson ID
-            teacher_id: Teacher's user ID
+            current_user: Authenticated user
             data: Quiz update data
         
         Returns:
             Updated Quiz instance
         """
-        lesson = self._get_teacher_lesson(lesson_id, teacher_id)
+        lesson = self._get_lesson_with_access(lesson_id, current_user)
         
         if not lesson.quiz:
             raise HTTPException(
@@ -348,20 +352,16 @@ class CourseManagementService:
         
         return quiz_loaded
     
-    def publish_course(self, course_id: int, teacher_id: int) -> bool:
-        """
-        Publish a course (make it visible to students).
+    def delete_course(self, course_id: int, current_user: User) -> bool:
+        course = self._get_course_with_access(course_id, current_user)
+        self.db.delete(course)
+        self.db.commit()
+        return True
+    
+    def publish_course(self, course_id: int, current_user: User) -> bool:
+        """Publish a course."""
+        course = self._get_course_with_access(course_id, current_user)
         
-        Args:
-            course_id: Course ID
-            teacher_id: Teacher's user ID
-        
-        Returns:
-            True if published successfully
-        """
-        course = self._get_teacher_course(course_id, teacher_id)
-        
-        # Validate course has content
         if not course.modules:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -372,57 +372,72 @@ class CourseManagementService:
         self.db.commit()
         return True
     
-    def unpublish_course(self, course_id: int, teacher_id: int) -> bool:
+    def unpublish_course(self, course_id: int, current_user: User) -> bool:
         """Unpublish a course."""
-        course = self._get_teacher_course(course_id, teacher_id)
+        course = self._get_course_with_access(course_id, current_user)
         course.is_published = False
         self.db.commit()
         return True
     
-    def _get_teacher_course(self, course_id: int, teacher_id: int) -> Course:
-        """Get course and verify teacher ownership."""
-        course = self.db.query(Course).filter(Course.id == course_id).first()
+    # ===== Helper methods =====
+    def _resolve_teacher_id(self, teacher_id: Optional[int]) -> int:
+        """Validate and return teacher_id for admin operations."""
+        if not teacher_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="teacher_id is required for admin operations"
+            )
         
+        teacher = self.db.query(User).filter(
+            User.id == teacher_id,
+            User.role == UserRole.TEACHER
+        ).first()
+        if not teacher:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Specified teacher not found"
+            )
+        return teacher.id
+    
+    def _has_admin_privileges(self, user: User) -> bool:
+        return user.role == UserRole.ADMIN
+    
+    def _get_course_with_access(self, course_id: int, current_user: User) -> Course:
+        """Retrieve a course ensuring the user has permission."""
+        course = self.db.query(Course).filter(Course.id == course_id).first()
         if not course:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Course not found"
             )
         
-        if course.teacher_id != teacher_id:
+        if not self._has_admin_privileges(current_user) and course.teacher_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to modify this course"
             )
-        
         return course
     
-    def _get_teacher_module(self, module_id: int, teacher_id: int) -> Module:
-        """Get module and verify teacher ownership via course."""
+    def _get_module_with_access(self, module_id: int, current_user: User) -> Module:
+        """Retrieve a module ensuring the user has permission via course."""
         module = self.db.query(Module).filter(Module.id == module_id).first()
-        
         if not module:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Module not found"
             )
-        
-        # Verify ownership through course
-        self._get_teacher_course(module.course_id, teacher_id)
+        self._get_course_with_access(module.course_id, current_user)
         return module
     
-    def _get_teacher_lesson(self, lesson_id: int, teacher_id: int) -> Lesson:
-        """Get lesson and verify teacher ownership via module/course."""
+    def _get_lesson_with_access(self, lesson_id: int, current_user: User) -> Lesson:
+        """Retrieve a lesson ensuring the user has permission via module/course."""
         lesson = self.db.query(Lesson).filter(Lesson.id == lesson_id).first()
-        
         if not lesson:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Lesson not found"
             )
-        
-        # Verify ownership through module -> course
-        self._get_teacher_module(lesson.module_id, teacher_id)
+        self._get_module_with_access(lesson.module_id, current_user)
         return lesson
 
 

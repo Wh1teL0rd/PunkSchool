@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import teachersAPI from '../api/teachers';
 import coursesAPI from '../api/courses';
+import { authAPI } from '../api/auth';
 import { getCategoryLabel, getLevelLabel } from '../utils/translations';
 import './CourseEditor.css';
 
@@ -11,6 +12,7 @@ function CourseEditor() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -46,6 +48,18 @@ function CourseEditor() {
   });
   const [questionOptionsCount, setQuestionOptionsCount] = useState(2);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState(null);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await authAPI.getCurrentUser();
+        setCurrentUser(user);
+      } catch (err) {
+        console.error('Error loading current user:', err);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (courseId) {
@@ -518,6 +532,8 @@ function CourseEditor() {
     );
   }
 
+  const backDashboardPath = currentUser?.role === 'admin' ? '/dashboard/admin' : '/dashboard/teacher';
+
   return (
     <div className="course-editor-page">
       <Header />
@@ -528,7 +544,7 @@ function CourseEditor() {
             <h1>{course.title}</h1>
             <p>Управління модулями та уроками</p>
           </div>
-          <button onClick={() => navigate('/dashboard/teacher')} className="btn-back">
+          <button onClick={() => navigate(backDashboardPath)} className="btn-back">
             ← Назад до кабінету
           </button>
         </div>

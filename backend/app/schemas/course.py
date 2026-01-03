@@ -217,7 +217,7 @@ class CourseBase(BaseModel):
 
 class CourseCreateDTO(CourseBase):
     """Schema for creating a course."""
-    pass
+    teacher_id: Optional[int] = None
 
 
 class CourseUpdateDTO(BaseModel):
@@ -227,6 +227,7 @@ class CourseUpdateDTO(BaseModel):
     price: Optional[float] = Field(None, ge=0)
     category: Optional[CourseCategory] = None
     level: Optional[DifficultyLevel] = None
+    teacher_id: Optional[int] = None
 
 
 class CourseResponse(CourseBase):

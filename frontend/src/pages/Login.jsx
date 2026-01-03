@@ -21,6 +21,10 @@ function Login() {
     }
   }, [location]);
 
+  const isAdminShortcut = (value) => value.trim().toLowerCase() === 'admin';
+
+  const isValidEmail = (value) => /\S+@\S+\.\S+/.test(value);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -38,6 +42,13 @@ function Login() {
     setLoading(true);
 
     try {
+      const emailValue = formData.email.trim();
+      if (!isAdminShortcut(emailValue) && !isValidEmail(emailValue)) {
+        setError('Введіть коректний email або слово \"admin\"');
+        setLoading(false);
+        return;
+      }
+
       // Спочатку перевіряємо доступність бекенду
       const isBackendAvailable = await authAPI.checkBackendHealth();
       if (!isBackendAvailable) {
@@ -98,15 +109,17 @@ function Login() {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">Email або admin</label>
             <input
-              type="email"
+              type="text"
               id="email"
               name="email"
+              inputMode="email"
+              autoComplete="username"
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="example@email.com"
+              placeholder="example@email.com або admin"
               disabled={loading}
             />
           </div>

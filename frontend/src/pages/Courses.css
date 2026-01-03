@@ -312,12 +312,12 @@
   padding: 2rem;
   position: relative;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  margin-top: 4rem;
 }
 
 .preview-close {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: -1rem;
   background: #f7fafc;
   border: none;
   width: 36px;
@@ -338,6 +338,7 @@
   aspect-ratio: 1;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  z-index: 10;
 }
 
 .preview-close span,

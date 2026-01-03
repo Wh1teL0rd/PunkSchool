@@ -63,7 +63,11 @@ class AuthService:
         Raises:
             HTTPException: If credentials are invalid
         """
-        user = self.db.query(User).filter(User.email == email).first()
+        login_value = (email or "").strip()
+        if login_value.lower() == settings.DEFAULT_ADMIN_LOGIN.lower():
+            login_value = settings.DEFAULT_ADMIN_EMAIL
+
+        user = self.db.query(User).filter(User.email == login_value).first()
         
         if not user or not user.verify_password(password):
             raise HTTPException(

@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Courses from './pages/Courses';
 import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import CourseEditor from './pages/CourseEditor';
 import CourseLearning from './pages/CourseLearning';
 import './App.css';
@@ -17,6 +18,7 @@ function App() {
         <Route path="/courses" element={<Courses />} />
         <Route path="/dashboard/student" element={<StudentDashboard />} />
         <Route path="/dashboard/teacher" element={<TeacherDashboard />} />
+        <Route path="/dashboard/admin" element={<AdminDashboard />} />
         <Route path="/course-editor/:courseId" element={<CourseEditor />} />
         <Route path="/course-learning/:courseId" element={<CourseLearning />} />
         <Route path="/register" element={<Register />} />

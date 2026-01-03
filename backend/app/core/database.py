@@ -54,6 +54,8 @@ class Database:
         self._migrate_course_rating_fields()
         # Ensure review tables exist (SQLite lacks easy ALTER TABLE ADD FOREIGN KEY)
         self._ensure_review_tables()
+        # Ensure default admin user exists
+        self._ensure_default_admin()
     
     def _migrate_lesson_type(self):
         """Add lesson_type column to lessons table if it doesn't exist."""
@@ -227,6 +229,45 @@ class Database:
                     print(f"✅ Migration: ensured {table_name} table exists")
         except Exception as e:
             print(f"⚠️ Migration warning (review tables): {e}")
+
+    def _ensure_default_admin(self):
+        """Create default admin user if not present."""
+        from sqlalchemy.orm import Session
+        from app.models.user import User
+        from app.models.enums import UserRole
+        from app.core.security import get_password_hash
+        try:
+            with self.session_factory() as session:  # type: Session
+                admin = session.query(User).filter(
+                    User.role == UserRole.ADMIN,
+                    User.email == settings.DEFAULT_ADMIN_EMAIL
+                ).first()
+                if admin:
+                    print("✅ Default admin already exists")
+                    return
+                
+                # Ensure no user with login email exists
+                existing_user = session.query(User).filter(
+                    User.email == settings.DEFAULT_ADMIN_EMAIL
+                ).first()
+                if existing_user:
+                    existing_user.role = UserRole.ADMIN
+                    session.commit()
+                    print(f"✅ Promoted existing user {existing_user.email} to admin")
+                    return
+                
+                admin_user = User(
+                    email=settings.DEFAULT_ADMIN_EMAIL,
+                    password_hash=get_password_hash(settings.DEFAULT_ADMIN_PASSWORD),
+                    full_name=settings.DEFAULT_ADMIN_NAME,
+                    role=UserRole.ADMIN,
+                    bio="Default platform administrator"
+                )
+                session.add(admin_user)
+                session.commit()
+                print(f"✅ Created default admin user {settings.DEFAULT_ADMIN_EMAIL}")
+        except Exception as e:
+            print(f"⚠️ Failed to ensure default admin: {e}")
 
 
 # Global database instance

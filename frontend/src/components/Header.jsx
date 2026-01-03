@@ -172,6 +172,15 @@ function Header() {
                       Кабінет викладача
                     </Link>
                   )}
+                  {user.role === 'admin' && (
+                    <Link
+                      to="/dashboard/admin"
+                      className="dropdown-item"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      Адмін-панель
+                    </Link>
+                  )}
                   <div className="dropdown-divider"></div>
                   <button
                     className="dropdown-item logout-item"

@@ -108,7 +108,7 @@ async def create_course(
 ):
     """Create a new course (Teacher only)."""
     service = CourseManagementService(db)
-    course = service.create_course(current_user.id, data)
+    course = service.create_course(current_user, data)
     return course
 
 
@@ -121,7 +121,7 @@ async def update_course(
 ):
     """Update a course (Owner only)."""
     service = CourseManagementService(db)
-    course = service.update_course(course_id, current_user.id, data)
+    course = service.update_course(course_id, current_user, data)
     return course
 
 
@@ -133,7 +133,7 @@ async def delete_course(
 ):
     """Delete a course (Owner only)."""
     service = CourseManagementService(db)
-    service.delete_course(course_id, current_user.id)
+    service.delete_course(course_id, current_user)
 
 
 @router.post("/{course_id}/publish", response_model=dict)
@@ -144,7 +144,7 @@ async def publish_course(
 ):
     """Publish a course (Owner only)."""
     service = CourseManagementService(db)
-    service.publish_course(course_id, current_user.id)
+    service.publish_course(course_id, current_user)
     return {"message": "Course published successfully"}
 
 
@@ -156,7 +156,7 @@ async def unpublish_course(
 ):
     """Unpublish a course (Owner only)."""
     service = CourseManagementService(db)
-    service.unpublish_course(course_id, current_user.id)
+    service.unpublish_course(course_id, current_user)
     return {"message": "Course unpublished successfully"}
 
 
@@ -171,7 +171,7 @@ async def add_module(
 ):
     """Add a module to a course (Owner only)."""
     service = CourseManagementService(db)
-    module = service.add_module(course_id, current_user.id, data)
+    module = service.add_module(course_id, current_user, data)
     return module
 
 
@@ -184,7 +184,7 @@ async def update_module(
 ):
     """Update a module (Owner only)."""
     service = CourseManagementService(db)
-    module = service.update_module(module_id, current_user.id, title)
+    module = service.update_module(module_id, current_user, title)
     return module
 
 
@@ -196,7 +196,7 @@ async def delete_module(
 ):
     """Delete a module (Owner only)."""
     service = CourseManagementService(db)
-    service.delete_module(module_id, current_user.id)
+    service.delete_module(module_id, current_user)
 
 
 # ============== Lesson endpoints ==============
@@ -223,7 +223,7 @@ async def get_lesson(
         )
     
     # Перевіряємо права доступу
-    service._get_teacher_module(lesson.module_id, current_user.id)
+    service._get_module_with_access(lesson.module_id, current_user)
     
     # Встановлюємо lesson_type за замовчуванням, якщо його немає або неправильний формат
     if not lesson.lesson_type or lesson.lesson_type not in [e.value for e in LessonType]:
@@ -246,7 +246,7 @@ async def add_lesson(
 ):
     """Add a lesson to a module (Owner only)."""
     service = CourseManagementService(db)
-    lesson = service.add_lesson(module_id, current_user.id, data)
+    lesson = service.add_lesson(module_id, current_user, data)
     return lesson
 
 
@@ -259,7 +259,7 @@ async def update_lesson(
 ):
     """Update a lesson (Owner only)."""
     service = CourseManagementService(db)
-    lesson = service.update_lesson(lesson_id, current_user.id, data)
+    lesson = service.update_lesson(lesson_id, current_user, data)
     return lesson
 
 
@@ -271,7 +271,7 @@ async def delete_lesson(
 ):
     """Delete a lesson (Owner only)."""
     service = CourseManagementService(db)
-    service.delete_lesson(lesson_id, current_user.id)
+    service.delete_lesson(lesson_id, current_user)
 
 
 # ============== Quiz endpoints ==============
@@ -289,7 +289,7 @@ async def get_lesson_quiz(
     
     service = CourseManagementService(db)
     # Перевіряємо права доступу
-    lesson = service._get_teacher_lesson(lesson_id, current_user.id)
+    lesson = service._get_lesson_with_access(lesson_id, current_user)
     
     # Завантажуємо quiz з питаннями
     quiz = db.query(Quiz).options(joinedload(Quiz.questions)).filter(Quiz.lesson_id == lesson_id).first()
@@ -314,7 +314,7 @@ async def add_quiz(
 ):
     """Add a quiz to a lesson (Owner only)."""
     service = CourseManagementService(db)
-    quiz = service.add_quiz(lesson_id, current_user.id, data)
+    quiz = service.add_quiz(lesson_id, current_user, data)
     return quiz
 
 
@@ -341,7 +341,7 @@ async def update_quiz(
         for idx, q in enumerate(data.questions):
             logger.info(f"  Question {idx + 1} in request: text='{q.question_text[:50]}...', options={len(q.options) if q.options else 0}, correct={q.correct_option_index}, points={q.points if hasattr(q, 'points') else 'N/A'}")
     
-    quiz = service.update_quiz(lesson_id, current_user.id, data)
+    quiz = service.update_quiz(lesson_id, current_user, data)
     
     # Завантажуємо quiz з питаннями для повного response
     quiz_with_questions = db.query(Quiz).options(joinedload(Quiz.questions)).filter(Quiz.id == quiz.id).first()
@@ -370,3 +370,26 @@ async def get_my_courses(
     """Get courses created by the current teacher."""
     service = CourseCatalogService(db)
     return service.get_courses_by_teacher(current_user.id)
+
+
+@router.get("/admin/all", response_model=List[CourseResponse])
+async def get_all_courses_admin(
+    category: Optional[CourseCategory] = None,
+    level: Optional[DifficultyLevel] = None,
+    sort_by: str = Query("newest", description="Sort strategy"),
+    teacher_id: Optional[int] = Query(None, description="Filter by teacher ID"),
+    include_unpublished: bool = Query(True, description="Include unpublished courses"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+):
+    """Get all courses for admin management."""
+    service = CourseCatalogService(db)
+    sort_strategy = get_sort_strategy(sort_by)
+    courses = service.get_all_courses(
+        category=category,
+        level=level,
+        sort_strategy=sort_strategy,
+        published_only=not include_unpublished,
+        teacher_id=teacher_id,
+    )
+    return courses

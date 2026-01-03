@@ -35,6 +35,16 @@ async def get_course_popularity(
     return service.get_course_popularity_stats()
 
 
+@router.get("/admin/overview")
+async def get_admin_overview(
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """Get aggregated analytics data for admin dashboard."""
+    service = AnalyticsService(db)
+    return service.get_admin_overview()
+
+
 @router.get("/platform")
 async def get_platform_stats(
     current_user: User = Depends(require_role([UserRole.ADMIN])),

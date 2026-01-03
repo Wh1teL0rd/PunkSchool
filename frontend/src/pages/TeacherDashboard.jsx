@@ -202,6 +202,20 @@ function TeacherDashboard() {
               <div className="stat-label">Студентів</div>
             </div>
             <div className="stat-card">
+              <div className="stat-icon">🎓</div>
+              <div className="stat-value">
+                {revenue?.completed_students || 0}
+              </div>
+              <div className="stat-label">
+                <span>Завершили курс<br /></span>
+                {revenue?.completion_rate !== undefined && (
+                  <span className="stat-subtext">
+                    {revenue.completion_rate}% успішності
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="stat-card">
               <div className="stat-icon">⭐</div>
               <div className="stat-value">
                 {teacherProfile?.rating !== undefined
@@ -283,16 +297,6 @@ function TeacherDashboard() {
           )}
         </section>
 
-        {/* Student Success Statistics */}
-        {popularity && (
-          <section className="dashboard-section">
-            <h2>Статистика успішності студентів</h2>
-            <div className="popularity-stats">
-              <p>Загальна статистика популярності курсів на платформі</p>
-              {/* Тут можна додати більше деталей статистики */}
-            </div>
-          </section>
-        )}
       </div>
 
       {/* Create/Edit Course Modal */}

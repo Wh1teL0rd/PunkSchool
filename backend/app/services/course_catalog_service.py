@@ -27,7 +27,8 @@ class CourseCatalogService:
         max_price: Optional[float] = None,
         teacher_search: Optional[str] = None,
         sort_strategy: Optional[ICourseSortStrategy] = None,
-        published_only: bool = True
+        published_only: bool = True,
+        teacher_id: Optional[int] = None
     ) -> List[Course]:
         """
         Get all courses with optional filters and sorting.
@@ -74,6 +75,8 @@ class CourseCatalogService:
                     User.email.ilike(search_term)
                 )
             )
+        elif teacher_id:
+            query = query.filter(Course.teacher_id == teacher_id)
         
         # Apply sorting strategy
         if sort_strategy:

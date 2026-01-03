@@ -67,12 +67,22 @@ class AnalyticsService:
             Course.teacher_id == teacher_id
         ).group_by(Course.id).all()
         
+        teacher_courses = self.db.query(Course.id).filter(Course.teacher_id == teacher_id).subquery()
+        
         # Count unique students enrolled in teacher's courses
         total_students = self.db.query(func.count(func.distinct(Enrollment.student_id))).filter(
-            Enrollment.course_id.in_(
-                self.db.query(Course.id).filter(Course.teacher_id == teacher_id).subquery()
-            )
+            Enrollment.course_id.in_(teacher_courses)
         ).scalar() or 0
+        
+        # Count students who completed at least one of the teacher's courses
+        completed_students = self.db.query(func.count(func.distinct(Enrollment.student_id))).filter(
+            Enrollment.course_id.in_(teacher_courses),
+            Enrollment.is_completed.is_(True)
+        ).scalar() or 0
+        
+        completion_rate = (
+            round((completed_students / total_students) * 100, 2) if total_students > 0 else 0.0
+        )
         
         return {
             "total_revenue": total_revenue,
@@ -80,6 +90,8 @@ class AnalyticsService:
             "period_days": days,
             "transaction_count": transaction_count,
             "total_students": total_students,
+            "completed_students": completed_students,
+            "completion_rate": completion_rate,
             "revenue_by_course": [
                 {"title": r[0], "revenue": r[1], "sales": r[2]}
                 for r in revenue_by_course
@@ -251,4 +263,104 @@ class AnalyticsService:
             "revenue": {
                 "total": total_revenue
             }
+        }
+    
+    def get_admin_overview(self) -> Dict[str, Any]:
+        """
+        Get aggregated analytics for admin dashboard.
+        Includes popular courses, top teachers, and financial metrics.
+        """
+        # Financials
+        total_revenue = self.db.query(func.sum(Transaction.amount)).scalar() or 0.0
+        total_transactions = self.db.query(func.count(Transaction.id)).scalar() or 0
+        total_enrollments = self.db.query(func.count(Enrollment.id)).scalar() or 0
+        total_students = self.db.query(func.count(User.id)).filter(User.role == UserRole.STUDENT).scalar() or 0
+        total_teachers = self.db.query(func.count(User.id)).filter(User.role == UserRole.TEACHER).scalar() or 0
+        total_courses = self.db.query(func.count(Course.id)).scalar() or 0
+        published_courses = self.db.query(func.count(Course.id)).filter(Course.is_published == True).scalar() or 0
+        
+        # Popular courses sorted by rating
+        popular_courses_query = (
+            self.db.query(
+                Course.id,
+                Course.title,
+                Course.rating,
+                Course.rating_count,
+                Course.price,
+                func.count(Enrollment.id).label("enrollments"),
+                User.full_name.label("teacher_name")
+            )
+            .join(User, Course.teacher_id == User.id)
+            .outerjoin(Enrollment, Enrollment.course_id == Course.id)
+            .group_by(Course.id, User.full_name)
+            .order_by(Course.rating.desc(), Course.rating_count.desc(), Course.title.asc())
+            .limit(6)
+            .all()
+        )
+        popular_courses = [
+            {
+                "id": c.id,
+                "title": c.title,
+                "rating": round(c.rating or 0, 2),
+                "rating_count": c.rating_count or 0,
+                "price": c.price,
+                "enrollments": c.enrollments or 0,
+                "teacher": c.teacher_name,
+            }
+            for c in popular_courses_query
+        ]
+        
+        # Top teachers by rating
+        top_teachers_query = (
+            self.db.query(
+                User.id,
+                User.full_name,
+                User.rating,
+                User.rating_count,
+                func.count(func.distinct(Enrollment.student_id)).label("students"),
+                func.count(func.distinct(Course.id)).label("courses")
+            )
+            .outerjoin(Course, Course.teacher_id == User.id)
+            .outerjoin(Enrollment, Enrollment.course_id == Course.id)
+            .filter(User.role == UserRole.TEACHER)
+            .group_by(User.id)
+            .order_by(User.rating.desc(), User.rating_count.desc(), User.full_name.asc())
+            .limit(10)
+            .all()
+        )
+        top_teachers = [
+            {
+                "id": t.id,
+                "full_name": t.full_name,
+                "rating": round(t.rating or 0, 2),
+                "rating_count": t.rating_count or 0,
+                "students": t.students or 0,
+                "courses": t.courses or 0,
+            }
+            for t in top_teachers_query
+        ]
+        
+        teacher_options_query = (
+            self.db.query(User.id, User.full_name)
+            .filter(User.role == UserRole.TEACHER)
+            .order_by(User.full_name.asc())
+            .all()
+        )
+        teacher_options = [{"id": t.id, "full_name": t.full_name} for t in teacher_options_query]
+        
+        return {
+            "financials": {
+                "total_revenue": round(total_revenue, 2),
+                "total_transactions": total_transactions,
+                "total_enrollments": total_enrollments,
+            },
+            "metrics": {
+                "total_courses": total_courses,
+                "published_courses": published_courses,
+                "total_students": total_students,
+                "total_teachers": total_teachers,
+            },
+            "popular_courses": popular_courses,
+            "top_teachers": top_teachers,
+            "teacher_options": teacher_options,
         }
