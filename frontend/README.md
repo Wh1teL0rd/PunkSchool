@@ -1,16 +1,101 @@
-# React + Vite
+# PunkSchool Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Огляд
+Це клієнтська частина платформи PunkSchool. Побудована на **React 18 + Vite**, взаємодіє з бекендом FastAPI на `http://localhost:8000/api`. Включає адмін-панель, кабінети викладачів/студентів, курс-редактор та вітальну сторінку.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Вимоги
+| Пакет | Версія / Примітка |
+|-------|-------------------|
+| Node.js | 18+ (рекомендовано LTS) |
+| npm / pnpm / yarn | нижче вказані команди для npm |
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Встановлення залежностей
+```bash
+cd frontend
+npm install
+```
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Запуск у режимі розробки
+```bash
+npm run dev
+```
+За замовчуванням Vite стартує на `http://localhost:5173`. Щоб фронтенд коректно працював, бекенд FastAPI повинен бути доступний на `http://localhost:8000` (див. `/backend/README.md`). Якщо бекенд працює на іншому хості/порті, задайте змінну `VITE_API_URL` (див. нижче).
+
+---
+
+## Збірка для продакшена
+```bash
+npm run build
+```
+Зібрані файли з’являться у `dist/`. Для локальної перевірки прод-версії:
+```bash
+npm run preview
+```
+
+---
+
+## Змінні середовища
+Створіть файл `.env` у папці `frontend`. Підтримувані змінні:
+```
+VITE_API_URL=http://localhost:8000/api
+```
+> Якщо не вказувати `VITE_API_URL`, використовується `http://localhost:8000/api`.
+
+---
+
+## Типові скрипти npm
+| Скрипт | Призначення |
+|--------|-------------|
+| `npm run dev` | Режим розробки з HMR |
+| `npm run build` | Продакшн-білд |
+| `npm run preview` | Попередній перегляд зібраного білду |
+
+---
+
+## Налаштування автентифікації
+Фронтенд очікує, що бекенд повертає JWT токен у `POST /api/auth/login`. Токен зберігається у `localStorage` (`access_token`). Після зміни стану автентифікації (логін / логаут) застосунок генерує подію `auth-changed`, яку слухають компоненти (наприклад, `Header`, `Home`).
+
+---
+
+## Структура (скорочено)
+```
+frontend/
+├─ src/
+│  ├─ api/            # Клієнти API (auth, admin, students тощо)
+│  ├─ components/     # Шапка, футер, UI блоки
+│  ├─ pages/          # Home, Courses, AdminDashboard, CourseEditor...
+│  ├─ utils/          # Допоміжні функції/константи
+│  └─ App.jsx         # Роутинг
+├─ public/
+├─ package.json
+└─ README.md
+```
+
+---
+
+## Корисні поради
+1. **CORS / невірний бекенд URL** — перевірте `VITE_API_URL`, також упевніться, що бекенд дозволяє `http://localhost:5173`.
+2. **Помилки при логіні** — дивіться лог `frontend/src/api/auth.js`. Якщо сервер не відповідає, консоль підкаже, як відновити з’єднання.
+3. **Оновлення токена** — при 401 фронтенд сам видаляє токен і редіректить на `/login`.
+
+---
+
+## Запуск повного стеку
+1. Підніміть бекенд (див. `backend/README.md`):
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+2. У іншому терміналі запустіть фронтенд:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+3. Відкрийте `http://localhost:5173`. Увійдіть як `admin@punkschool.com / admin`, щоб протестувати адмін-панель.
+
+---
