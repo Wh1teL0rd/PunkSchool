@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import db
-from app.routers import auth_router, courses_router, students_router, analytics_router
+from app.routers import auth_router, courses_router, students_router, analytics_router, admin_router
 
 
 # Create FastAPI application
@@ -48,6 +48,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(courses_router, prefix="/api")
 app.include_router(students_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 @app.on_event("startup")

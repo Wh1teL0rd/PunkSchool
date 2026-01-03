@@ -31,6 +31,7 @@ function AdminDashboard() {
   const [teacherOptions, setTeacherOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [filters, setFilters] = useState({
     teacherId: '',
     category: 'all',
@@ -38,6 +39,10 @@ function AdminDashboard() {
     includeUnpublished: true,
     sortBy: 'newest',
   });
+  const [studentUsers, setStudentUsers] = useState([]);
+  const [teacherUsers, setTeacherUsers] = useState([]);
+  const [balanceModal, setBalanceModal] = useState({ open: false, user: null, newBalance: 0 });
+  const [usersError, setUsersError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [formData, setFormData] = useState({
@@ -67,7 +72,8 @@ function AdminDashboard() {
           includeUnpublished: filters.includeUnpublished,
           sortBy: filters.sortBy,
         });
-        await Promise.all([overviewPromise, coursesPromise]);
+        const usersPromise = fetchUsers();
+        await Promise.all([overviewPromise, coursesPromise, usersPromise]);
       } catch (err) {
         console.error('Admin dashboard auth error:', err);
         setError('Не вдалося завантажити дані користувача.');
@@ -144,7 +150,77 @@ function AdminDashboard() {
         includeUnpublished: filters.includeUnpublished,
         sortBy: filters.sortBy,
       }),
+      fetchUsers(),
     ]);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setUsersLoading(true);
+      setUsersError('');
+      const [studentsData, teachersData] = await Promise.all([
+        adminAPI.getUsers('student'),
+        adminAPI.getUsers('teacher'),
+      ]);
+      setStudentUsers(studentsData);
+      setTeacherUsers(teachersData);
+    } catch (err) {
+      console.error('Failed to load users:', err);
+      setUsersError('Не вдалося завантажити список користувачів.');
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const formatDate = (date) => {
+    try {
+      return new Date(date).toLocaleDateString('uk-UA');
+    } catch {
+      return '—';
+    }
+  };
+
+  const handleDeleteUser = async (userId, role) => {
+    const roleLabel = role === 'teacher' ? 'викладача' : 'студента';
+    if (!window.confirm(`Видалити ${roleLabel}? Дію не можна скасувати.`)) return;
+    try {
+      await adminAPI.deleteUser(userId);
+      await fetchUsers();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      alert('Не вдалося видалити користувача.');
+    }
+  };
+
+  const openBalanceModal = (user) => {
+    setBalanceModal({
+      open: true,
+      user,
+      newBalance: user.balance ?? 0,
+    });
+  };
+
+  const closeBalanceModal = () => {
+    setBalanceModal({ open: false, user: null, newBalance: 0 });
+  };
+
+  const handleBalanceSave = async () => {
+    if (!balanceModal.user) return;
+    try {
+      await adminAPI.updateUserBalance(balanceModal.user.id, Number(balanceModal.newBalance));
+      closeBalanceModal();
+      await fetchUsers();
+    } catch (err) {
+      console.error('Failed to update balance:', err);
+      alert('Не вдалося оновити баланс користувача.');
+    }
+  };
+
+  const handleBalanceInputChange = (value) => {
+    setBalanceModal((prev) => ({
+      ...prev,
+      newBalance: value,
+    }));
   };
 
   const handleFilterChange = (key, value) => {
@@ -488,6 +564,132 @@ function AdminDashboard() {
             </table>
           </div>
         </section>
+
+        {/* Users management */}
+        <section className="dashboard-section">
+          <div className="admin-section-header">
+            <div>
+              <h2>Користувачі платформи</h2>
+              <p>Переглядайте студентів та викладачів і керуйте їх доступом</p>
+            </div>
+            <div className="users-meta">
+              <span className="pill">👨‍🏫 {teacherUsers.length} викладачів</span>
+              <span className="pill">👩‍🎓 {studentUsers.length} студентів</span>
+            </div>
+          </div>
+
+          {usersError && <div className="dashboard-error subtle">{usersError}</div>}
+          {usersLoading ? (
+            <div className="dashboard-loading small">Оновлення списку користувачів...</div>
+          ) : (
+            <div className="admin-users-grid">
+              <div className="user-card">
+                <div className="user-card-header">
+                  <h3>Викладачі</h3>
+                  <span className="pill light">{teacherUsers.length}</span>
+                </div>
+                <div className="admin-table-wrapper">
+                  <table className="admin-table user-table">
+                    <thead>
+                      <tr>
+                        <th>Імʼя</th>
+                        <th>Email</th>
+                        <th>Рейтинг</th>
+                        <th>Баланс</th>
+                        <th>Створено</th>
+                        <th>Дії</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teacherUsers.length ? (
+                        teacherUsers.map((teacher) => (
+                          <tr key={teacher.id}>
+                            <td>
+                              <strong>{teacher.full_name}</strong>
+                              <p className="muted small-text">{teacher.bio || '—'}</p>
+                            </td>
+                            <td>{teacher.email}</td>
+                            <td>⭐ {teacher.rating?.toFixed(1) ?? '0.0'} ({teacher.rating_count || 0})</td>
+                            <td>{currencyFormatter.format(teacher.balance || 0)}</td>
+                            <td>{formatDate(teacher.created_at)}</td>
+                            <td className="admin-table-actions">
+                              <button className="btn-secondary" onClick={() => openBalanceModal(teacher)}>
+                                Баланс
+                              </button>
+                              <button
+                                className="btn-delete"
+                                onClick={() => handleDeleteUser(teacher.id, 'teacher')}
+                              >
+                                Видалити
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="muted text-center">
+                            Викладачів не знайдено
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="user-card">
+                <div className="user-card-header">
+                  <h3>Студенти</h3>
+                  <span className="pill light">{studentUsers.length}</span>
+                </div>
+                <div className="admin-table-wrapper">
+                  <table className="admin-table user-table">
+                    <thead>
+                      <tr>
+                        <th>Імʼя</th>
+                        <th>Email</th>
+                        <th>Баланс</th>
+                        <th>Створено</th>
+                        <th>Дії</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentUsers.length ? (
+                        studentUsers.map((student) => (
+                          <tr key={student.id}>
+                            <td>
+                              <strong>{student.full_name}</strong>
+                            </td>
+                            <td>{student.email}</td>
+                            <td>{currencyFormatter.format(student.balance || 0)}</td>
+                            <td>{formatDate(student.created_at)}</td>
+                            <td className="admin-table-actions">
+                              <button className="btn-secondary" onClick={() => openBalanceModal(student)}>
+                                Баланс
+                              </button>
+                              <button
+                                className="btn-delete"
+                                onClick={() => handleDeleteUser(student.id, 'student')}
+                              >
+                                Видалити
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="muted text-center">
+                            Студентів не знайдено
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       {showModal && (
@@ -579,6 +781,55 @@ function AdminDashboard() {
                 </button>
                 <button type="submit" className="btn-submit">
                   {editingCourse ? 'Зберегти' : 'Створити'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {balanceModal.open && (
+        <div className="modal-overlay">
+          <div className="modal-content balance-modal">
+            <div className="modal-header">
+              <h2>Редагувати баланс</h2>
+              <button className="modal-close" onClick={closeBalanceModal} aria-label="Закрити">
+                <span>×</span>
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleBalanceSave();
+              }}
+            >
+              <div className="form-group">
+                <label>Користувач</label>
+                <div className="muted">
+                  <strong>{balanceModal.user?.full_name || balanceModal.user?.email}</strong>
+                  <div>{balanceModal.user?.email}</div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Новий баланс (₴)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={balanceModal.newBalance}
+                  onChange={(e) => handleBalanceInputChange(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-cancel" onClick={closeBalanceModal}>
+                  Скасувати
+                </button>
+                <button type="submit" className="btn-submit">
+                  Зберегти
                 </button>
               </div>
             </form>

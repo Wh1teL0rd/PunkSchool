@@ -33,6 +33,10 @@ class UserUpdateDTO(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     bio: Optional[str] = None
 
+class UserBalanceUpdate(BaseModel):
+    """Schema for admin balance updates."""
+    balance: float = Field(..., ge=0)
+
 
 # Response schemas
 class UserResponse(UserBase):

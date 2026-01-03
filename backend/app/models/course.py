@@ -20,7 +20,7 @@ class Course(Base):
     __tablename__ = "courses"
     
     id = Column(Integer, primary_key=True, index=True)
-    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     price = Column(Float, default=0.0, nullable=False)

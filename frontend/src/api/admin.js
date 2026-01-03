@@ -56,6 +56,22 @@ const adminAPI = {
     const response = await api.post(`/courses/${courseId}/unpublish`);
     return response.data;
   },
+
+  getUsers: async (role) => {
+    const params = role ? `?role=${role}` : '';
+    const response = await api.get(`/admin/users${params}`);
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await api.delete(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  updateUserBalance: async (userId, balance) => {
+    const response = await api.put(`/admin/users/${userId}/balance`, { balance });
+    return response.data;
+  },
 };
 
 export default adminAPI;
