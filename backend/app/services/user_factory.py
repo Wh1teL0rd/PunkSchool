@@ -12,7 +12,7 @@ from app.core.security import get_password_hash
 
 class UserFactory(ABC):
     """
-    Abstract Factory for creating users.
+    Abstract base class for creating users.
     Implements the Factory Method pattern.
     """
     

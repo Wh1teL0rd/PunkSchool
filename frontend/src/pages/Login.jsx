@@ -44,7 +44,7 @@ function Login() {
     try {
       const emailValue = formData.email.trim();
       if (!isAdminShortcut(emailValue) && !isValidEmail(emailValue)) {
-        setError('Введіть коректний email або слово \"admin\"');
+        setError('Не правильний email або пароль');
         setLoading(false);
         return;
       }
@@ -109,7 +109,7 @@ function Login() {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="email">Email або admin</label>
+            <label htmlFor="email">Email</label>
             <input
               type="text"
               id="email"
